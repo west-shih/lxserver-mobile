@@ -1,0 +1,62 @@
+# OS / temporary files
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.tmp
+*.swp
+*.swo
+*.log
+
+# Local IDE configuration
+.idea/
+*.iml
+.vscode/
+
+# Dart / Flutter generated files
+.dart_tool/
+.pub/
+.pub-cache/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+coverage/
+doc/api/
+**/flutter/ephemeral/
+.fvm/flutter_sdk
+
+# Android local configuration / signing
+**/.gradle/
+**/local.properties
+**/key.properties
+*.jks
+*.keystore
+android/captures/
+android/.cxx/
+android/.kotlin/
+
+# Apple generated files / local state
+**/Pods/
+**/.symlinks/
+**/DerivedData/
+**/xcuserdata/
+*.xcuserstate
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/Flutter/App.framework/
+ios/Flutter/Flutter.framework/
+ios/Flutter/Flutter.podspec
+ios/Flutter/.last_build_id
+ios/Runner/GeneratedPluginRegistrant.*
+macos/Flutter/GeneratedPluginRegistrant.swift
+*.p12
+*.p8
+*.mobileprovision
+
+# Secrets / machine-specific settings
+.env
+.env.*
+!.env.example
+secrets/
+
+# pubspec.lock must be committed for this application.
+# Keep generated platform .gitignore files when initializing Flutter.
