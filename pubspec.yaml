@@ -1,0 +1,26 @@
+name: lxserver_mobile
+description: "LXServer 原生 API 移动音乐客户端。"
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.13.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_secure_storage: ^11.2.0
+  http: ^1.6.0
+  just_audio: ^0.10.6
+  path_provider: ^2.1.6
+  crypto: ^3.0.8
+
+dev_dependencies:
+  integration_test:
+    sdk: flutter
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

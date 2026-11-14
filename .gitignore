@@ -60,3 +60,5 @@ secrets/
 
 # pubspec.lock must be committed for this application.
 # Keep generated platform .gitignore files when initializing Flutter.
+# Widget Preview related
+.widget_preview/
