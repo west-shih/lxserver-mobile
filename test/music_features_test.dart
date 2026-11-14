@@ -45,6 +45,44 @@ void main() {
     'test-user',
     'test-token',
   );
+  test(
+    'Lyrics use authenticated GET with saved song identity and source fields',
+    () async {
+      final api = LxApi(
+        client: MockClient((request) async {
+          expect(request.method, 'GET');
+          expect(request.url.path, '/api/music/lyric');
+          expect(request.headers['x-user-token'], 'test-token');
+          expect(request.headers['x-user-name'], 'test-user');
+          expect(
+            request.url.queryParameters,
+            containsPair('songmid', '123456'),
+          );
+          expect(request.url.queryParameters, containsPair('source', 'tx'));
+          expect(request.url.queryParameters, containsPair('name', '测试 & 歌曲'));
+          expect(
+            request.url.queryParameters,
+            containsPair('lrcUrl', 'https://example.test/lrc?a=1&b=2'),
+          );
+          expect(request.body, isEmpty);
+          return jsonResponse({
+            'lyric': '[00:01.00]fixture',
+            '_fromLocalCache': true,
+          });
+        }),
+      );
+      final result = await api.lyrics(
+        session,
+        Song({
+          'id': 'tx_123456',
+          'name': '测试 & 歌曲',
+          'singer': '测试歌手',
+          'meta': {'lrcUrl': 'https://example.test/lrc?a=1&b=2'},
+        }, MusicSource.tx),
+      );
+      expect(Lyrics.parse(result).lines.single.text, 'fixture');
+    },
+  );
   test('Availability unions ready sources and subtracts per-source disabled platforms', () {
     final result = SourceAvailability.parse([
       {

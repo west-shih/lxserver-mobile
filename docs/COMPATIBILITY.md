@@ -11,7 +11,7 @@
 | 上游 commit | 13865b82b19fe51219e3e21948c104a50e6fcebc |
 | 版本依据 | package.json=2.2.0；v2.2.0 标签解析到同一 commit |
 | 当前本地源码 | 仓库旁 ../lxserver-mobile-upstream，按当前工作目录解析 |
-| 用户部署版本/commit | 网页截图展示 v2.2.0 Web；实际部署 commit 未确认 |
+| 用户部署版本/commit | 2026-11-14 `/js/config.js` 自报 v2.2.0 / buildHash `6c6462d`；完整部署 commit 未确认，与本地基线不同；仅完成 QQ 同曲歌词 POST 500 / GET 200 的真实接口对照，未扩大支持范围 |
 
 目录是当前机器的检出位置，不是所有开发机必须采用的目录结构；不要直接修改参考仓库或切换其版本覆盖已有改动。
 

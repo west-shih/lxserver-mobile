@@ -57,7 +57,9 @@
 | GET /api/music/songList/search | source/text/page；在线歌单搜索 |
 | GET /api/music/songList/detail | source/id/page；分页加载 list，跨页去重，遇空页/重复页停止 |
 | GET /api/music/cache/list | 用户 Token/name；success=true、data 数组。按 id、quality、folder(cache/music) 建立服务器文件状态，一次加载供所有可见歌曲复用。下载目录同档优先，接口不可用标记未知，不伪造缓存状态 |
-| POST /api/music/lyric | JSON songInfo；读取 lyric 和可选 tlyric，失败不阻断音频播放 |
+| GET /api/music/lyric | 用户 Token/name；query 携带 source/songmid/name/singer 及可用的 songId/hash/interval/copyrightId/albumId/lrcUrl/mrcUrl/trcUrl；读取 lyric 和可选 tlyric，失败不阻断音频播放 |
+
+歌词依据：固定基线 `src/server/server.ts` GET 分支与 `src/server/music/downloadLyrics.ts`，先读取当前用户的服务端已有歌词，再请求平台，失败时允许读取内嵌歌词。旧 POST 分支直接请求平台，绕过已有歌词。2026-11-14 SM S9180 真实部署诊断：同一 QQ 歌曲 POST 返回 HTTP 500 / `Get lyric failed`，GET 返回 200、3088 字符歌词，含 `_fromLocalCache` 字段；补数字 songId 后 POST 仍失败。安装修复版后，通过真机 PlayerController.loadLyrics 实测加载 75 行同步歌词，loadingLyrics=false、lyricError=null。电脑直连 QQ 返回成功不能证明服务器网络正常。部署 `/js/config.js` 自报 v2.2.0 / `6c6462d`，完整部署 commit 未确认；仅验证本条 GET 契约，不扩大兼容范围。
 
 - 平台可见性依据“支持解析的平台”，不是搜索请求成功率，也不保证每首歌一定可播放。
 - 缓存标签与网页 public/music/js/local/server_file_state.js 对齐：标识按 songmid/songId/id 和平台前缀生成，下载目录 music 显示已下载，cache 显示已缓存；均在服务器，不在手机。状态单次并发合并、60 秒复用，账号切换清空，刷新音乐库强制刷新；不逐首逐音质请求，不持久保存文件列表/签名 URL。

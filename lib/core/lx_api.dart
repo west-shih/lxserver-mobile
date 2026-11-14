@@ -285,8 +285,23 @@ class LxApi {
     s.server,
     '/api/music/lyric',
     session: s,
-    method: 'POST',
-    body: {'songInfo': song.raw},
+    query: {
+      'source': '${song.raw['source']}',
+      'songmid': '${song.raw['songmid'] ?? song.raw['songId'] ?? ''}',
+      'name': song.name,
+      'singer': song.singer,
+      for (final key in [
+        'songId',
+        'hash',
+        'interval',
+        'copyrightId',
+        'albumId',
+        'lrcUrl',
+        'mrcUrl',
+        'trcUrl',
+      ])
+        if (song.raw[key] != null) key: '${song.raw[key]}',
+    },
   );
 
   Future<Map<String, dynamic>> comments(
