@@ -1,0 +1,99 @@
+import 'package:flutter/material.dart';
+
+import '../app/controller.dart';
+import '../app/theme.dart';
+import '../core/lx_api.dart';
+import '../features/player/quality.dart';
+import 'music_badge.dart';
+import '../features/local_media/local_media_screens.dart';
+
+class SongMetadata extends StatelessWidget {
+  const SongMetadata({
+    super.key,
+    required this.controller,
+    required this.song,
+    this.showSinger = true,
+    this.qualityOverride,
+  });
+  final AppController controller;
+  final Song song;
+  final bool showSinger;
+  final String? qualityOverride;
+  @override
+  Widget build(BuildContext context) {
+    final folders = controller.serverFiles.folders(song);
+    final local = controller.localMedia.folders(song);
+    final quality =
+        qualityOverride ??
+        QualityPolicy.badge(song, verified: [...folders.keys, ...local.keys]);
+    final cached = controller.localMedia.badge(song);
+    final badges = <Widget>[
+      MusicBadge(
+        song.sourceLabel,
+        tone: song.isOnline ? MusicBadge.source(song.source) : BadgeTone.gray,
+      ),
+      if (quality != null)
+        Tooltip(
+          message: qualityOverride == null
+              ? '歌曲标注音质，实际播放以解析结果为准'
+              : '当前播放音质，以服务器标注为准',
+          child: MusicBadge(quality, tone: MusicBadge.quality(quality)),
+        ),
+      if (cached != null)
+        Tooltip(
+          message: local.entries
+              .map(
+                (e) =>
+                    '${AudioQuality.labelOf(e.key)} ${e.value == 'downloads' ? '本机已下载' : '本机已缓存'}',
+              )
+              .join(' · '),
+          child: InkWell(
+            onTap: cached == '已缓存'
+                ? () => confirmClearSongCache(context, controller, song)
+                : null,
+            borderRadius: BorderRadius.circular(6),
+            child: MusicBadge(
+              cached,
+              tone: cached == '已下载' ? BadgeTone.blue : BadgeTone.green,
+            ),
+          ),
+        ),
+    ];
+    if (!showSinger) {
+      return Wrap(
+        spacing: 8,
+        runSpacing: 5,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: badges,
+      );
+    }
+    final singer = Text(
+      song.singer,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(color: lxMuted, fontSize: 12),
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (MediaQuery.textScalerOf(context).scale(10) > 13 ||
+            constraints.maxWidth < 150) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(spacing: 4, runSpacing: 3, children: badges),
+              const SizedBox(height: 3),
+              singer,
+            ],
+          );
+        }
+        return Row(
+          children: [
+            for (final badge in badges) ...[badge, const SizedBox(width: 4)],
+            const SizedBox(width: 2),
+            Expanded(child: singer),
+          ],
+        );
+      },
+    );
+  }
+}

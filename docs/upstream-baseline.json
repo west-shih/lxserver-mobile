@@ -1,0 +1,9 @@
+{
+  "repository": "https://github.com/XCQ0607/lxserver",
+  "version": "2.2.0",
+  "tag": "v2.2.0",
+  "commit": "13865b82b19fe51219e3e21948c104a50e6fcebc",
+  "verifiedOn": "2026-11-14",
+  "evidence": ["package.json", "git tag v2.2.0 points to the recorded commit"],
+  "deploymentVersionVerified": false
+}

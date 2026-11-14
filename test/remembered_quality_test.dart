@@ -1,0 +1,158 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:lxserver_mobile/core/lx_api.dart';
+import 'package:lxserver_mobile/features/player/playback_cache.dart';
+import 'package:lxserver_mobile/features/player/quality.dart';
+
+void main() {
+  test('A previously restored higher stream cannot override a lower manual preference', () async {
+    final track = Song({'songmid': 'bounded'}, MusicSource.tx);
+    final cache = PlaybackCache()
+      ..success(
+        'scope',
+        track,
+        PlaybackResource(Uri.parse('https://media.test/flac'), 'flac', 'flac'),
+        preference: '128k',
+      );
+    final result = await loadWithQualityFallback(
+      song: track,
+      preference: '128k',
+      cache: cache,
+      scope: 'scope',
+      resolve: (q) async =>
+          PlaybackResource(Uri.parse('https://media.test/$q'), q, q),
+      load: (_) async {},
+      isCurrent: () => true,
+      onAttempt: (_) {},
+    );
+    expect(result!.requestedQuality, '128k');
+  });
+  final song = Song({'songmid': 'remembered'}, MusicSource.tx);
+  PlaybackResource resource(String q) =>
+      PlaybackResource(Uri.parse('https://media.test/$q'), q, q);
+
+  test('A week and a restart only refresh the working quality URL, not higher qualities', () async {
+    var now = DateTime.utc(2026, 11, 14);
+    String? saved;
+    final cache = PlaybackCache(
+      now: () => now,
+      saveHistory: (value) async => saved = value,
+    );
+    final firstCalls = <String>[];
+    await loadWithQualityFallback(
+      song: song,
+      preference: 'flac',
+      cache: cache,
+      scope: 'scope',
+      resolve: (q) async {
+        firstCalls.add(q);
+        if (q == 'flac') throw const ApiFailure('Unavailable');
+        return resource(q);
+      },
+      load: (_) async {},
+      isCurrent: () => true,
+      onAttempt: (_) {},
+    );
+    expect(firstCalls, ['flac', '320k']);
+    await cache.flush();
+    now = now.add(const Duration(days: 7));
+    final restored = PlaybackCache(now: () => now)..restore(saved);
+    final replayCalls = <String>[];
+    final replay = await loadWithQualityFallback(
+      song: song,
+      preference: 'flac',
+      cache: restored,
+      scope: 'scope',
+      resolve: (q) async {
+        replayCalls.add(q);
+        return resource(q);
+      },
+      load: (_) async {},
+      isCurrent: () => true,
+      onAttempt: (_) {},
+    );
+    expect(replay!.requestedQuality, '320k');
+    expect(replayCalls, ['320k']);
+  });
+  test(
+    'A new preference or explicit retry can choose a different quality',
+    () async {
+      final cache = PlaybackCache()
+        ..success('scope', song, resource('128k'), preference: 'flac');
+      final changed = await loadWithQualityFallback(
+        song: song,
+        preference: '320k',
+        cache: cache,
+        scope: 'scope',
+        resolve: (q) async => resource(q),
+        load: (_) async {},
+        isCurrent: () => true,
+        onAttempt: (_) {},
+      );
+      expect(changed!.requestedQuality, '320k');
+      cache.forget('scope', song);
+      final retried = await loadWithQualityFallback(
+        song: song,
+        preference: 'flac',
+        cache: cache,
+        scope: 'scope',
+        respectMetadata: false,
+        resolve: (q) async => resource(q),
+        load: (_) async {},
+        isCurrent: () => true,
+        onAttempt: (_) {},
+      );
+      expect(retried!.requestedQuality, 'flac');
+    },
+  );
+  test('Failure of the working quality allows a new selection', () async {
+    final cache = PlaybackCache()
+      ..success('scope', song, resource('320k'), preference: 'flac');
+    final calls = <String>[];
+    final result = await loadWithQualityFallback(
+      song: song,
+      preference: 'flac',
+      cache: cache,
+      scope: 'scope',
+      resolve: (q) async {
+        calls.add(q);
+        if (q == '320k') throw const ApiFailure('Unavailable');
+        return resource(q);
+      },
+      load: (r) async {
+        if (r.requestedQuality == '320k') throw StateError('Expired/broken');
+      },
+      isCurrent: () => true,
+      onAttempt: (_) {},
+    );
+    expect(calls, ['320k', 'flac']);
+    expect(result!.requestedQuality, 'flac');
+  });
+  test(
+    'Incomplete or changed metadata does not erase a proven working quality',
+    () async {
+      final cache = PlaybackCache()
+        ..success('scope', song, resource('320k'), preference: 'flac');
+      final fresh = Song(
+        {
+          'songmid': 'remembered',
+          'types': [
+            {'type': 'flac'},
+          ],
+        },
+        MusicSource.tx,
+        freshQualityMetadata: true,
+      );
+      final result = await loadWithQualityFallback(
+        song: fresh,
+        preference: 'flac',
+        cache: cache,
+        scope: 'scope',
+        resolve: (q) async => resource(q),
+        load: (_) async {},
+        isCurrent: () => true,
+        onAttempt: (_) {},
+      );
+      expect(result!.requestedQuality, '320k');
+    },
+  );
+}
