@@ -322,7 +322,19 @@ void main() {
       await capture('discovery');
       await tester.tap(find.text('测试发现歌单'));
       await waitUntil(() => find.text('接口测试歌曲').evaluate().isNotEmpty);
-      await c.player.reset();
+      final savedFile = c.localMedia.downloads.single;
+      await c.player.play(
+        c.session!,
+        savedFile.song,
+        songs: [savedFile.song],
+        quality: savedFile.quality,
+      );
+      await waitUntil(() => c.player.playing && !c.player.resolving);
+      await c.player.seek(const Duration(seconds: 6));
+      await waitUntil(() => c.player.position.inSeconds >= 6);
+      await c.player.toggle();
+      await waitUntil(() => !c.player.playing);
+      await c.flushPlayback();
       await c.localMedia.flush();
       await c.api.read(c.session!, '/fixture/go-offline');
       await Future<void>.delayed(const Duration(milliseconds: 200));
@@ -336,6 +348,9 @@ void main() {
       await offline.restore();
       expect(offline.offlineMode, true);
       expect(offline.session, isNotNull);
+      expect(offline.player.current!.id, savedFile.song.id);
+      expect(offline.player.position.inSeconds, greaterThanOrEqualTo(6));
+      expect(offline.player.playing, false);
       expect(offline.localMedia.downloads.length, 1);
       expect(offline.localMedia.downloads.single.song.source, MusicSource.kw);
       expect(offline.localMedia.downloads.single.song.image, isNotEmpty);
@@ -347,6 +362,14 @@ void main() {
       );
       await tester.pumpWidget(LxApp(key: UniqueKey(), controller: offline));
       await tester.pumpAndSettle();
+      await capture('restored-player');
+      await tester.tap(find.byTooltip('播放'));
+      await waitUntil(
+        () =>
+            offline.player.playing &&
+            !offline.player.resolving &&
+            offline.player.position.inSeconds >= 6,
+      );
       await tab('我的');
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('本机下载'));
@@ -382,11 +405,13 @@ void main() {
         () => !offline.player.playing && offline.player.position.inSeconds < 1,
       );
       // Logout while a private local-download route is open must dismiss it too.
+      final resumeSession = offline.session!;
       await offline.logout();
       await tester.pumpAndSettle();
       expect(find.text('连接并登录'), findsOneWidget);
       expect(offline.session, null);
       expect(await offline.store.read(), null);
+      expect(await offline.playbackResume.read(resumeSession), null);
       const storage = FlutterSecureStorage();
       await storage.delete(key: 'lx.server');
       expect(offline.player.current, null);
@@ -394,6 +419,7 @@ void main() {
       await tester.pumpWidget(const SizedBox());
       await offline.localMedia.flush();
       offline.dispose();
+      await offline.playbackResume.flush();
       expect(
         mediaRoot.absolute.path.startsWith(Directory.systemTemp.absolute.path),
         true,

@@ -7,6 +7,7 @@ import '../core/lx_api.dart';
 import '../core/session_store.dart';
 import '../features/player/player_controller.dart';
 import '../features/player/playback_cache.dart';
+import '../features/player/playback_resume.dart';
 import '../features/library/library_controller.dart';
 import '../features/library/server_files_controller.dart';
 import '../features/local_media/local_media_controller.dart';
@@ -31,6 +32,8 @@ class AppController extends ChangeNotifier {
       serverQualities: (song) => serverFiles.folders(song).keys,
       localMedia: localMedia,
     );
+    playbackResume = PlaybackResumeStore(directory: mediaDirectory);
+    player.addListener(_rememberPlayback);
     serverFiles.addListener(player.refreshQualityAvailability);
     localMedia.addListener(player.refreshQualityAvailability);
     library = LibraryController(this.api, expire);
@@ -39,6 +42,38 @@ class AppController extends ChangeNotifier {
   final LxApi api;
   final store = SessionStore();
   late final PlayerController player;
+  late final PlaybackResumeStore playbackResume;
+  String? _lastResumeSong;
+  int _lastResumeQueueLength = -1;
+  void _rememberPlayback() {
+    final active = session;
+    if (restoring ||
+        active == null ||
+        player.resolving ||
+        player.changingQuality ||
+        player.error != null) {
+      return;
+    }
+    final state = player.snapshot(active);
+    if (state != null) {
+      final changed =
+          _lastResumeSong != player.current!.id ||
+          _lastResumeQueueLength != state.songs.length;
+      _lastResumeSong = player.current!.id;
+      _lastResumeQueueLength = state.songs.length;
+      playbackResume.schedule(state, immediately: changed || !player.playing);
+    } else if (player.queue.isEmpty) {
+      _lastResumeSong = null;
+      _lastResumeQueueLength = -1;
+      unawaited(playbackResume.clear());
+    }
+  }
+
+  Future<void> flushPlayback() {
+    _rememberPlayback();
+    return playbackResume.flush();
+  }
+
   late final ServerFilesController serverFiles;
   late final LocalMediaController localMedia;
   bool offlineMode = false;
@@ -111,6 +146,7 @@ class AppController extends ChangeNotifier {
           session = saved;
         } else {
           await store.clear();
+          await playbackResume.clear();
           authError = '登录已失效，请重新登录';
         }
       }
@@ -121,11 +157,19 @@ class AppController extends ChangeNotifier {
         authError = null;
       } else {
         authError = e.message;
+        if (e.unauthorized) {
+          await store.clear();
+          await playbackResume.clear();
+        }
       }
     } catch (_) {
       authError = '无法恢复登录，请重新登录';
     }
-    if (session != null) await localMedia.activate(session!);
+    if (session != null) {
+      await localMedia.activate(session!);
+      final state = await playbackResume.read(session!);
+      if (state != null) player.restorePlayback(session!, state);
+    }
     restoring = false;
     notifyListeners();
     if (session != null && !offlineMode) {
@@ -191,6 +235,7 @@ class AppController extends ChangeNotifier {
     notifyListeners();
     try {
       await player.reset();
+      await playbackResume.clear();
       await localMedia.deactivate();
       await store.clear();
     } catch (_) {
@@ -379,6 +424,9 @@ class AppController extends ChangeNotifier {
   void dispose() {
     ++_capabilityVersion;
     ++_searchVersion;
+    _rememberPlayback();
+    player.removeListener(_rememberPlayback);
+    playbackResume.dispose();
     player.dispose();
     localMedia.dispose();
     serverFiles.dispose();

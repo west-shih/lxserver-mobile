@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'dart:async';
+
 import '../features/connection/login_screen.dart';
 import 'home.dart';
 import 'controller.dart';
@@ -12,13 +14,14 @@ class LxApp extends StatefulWidget {
   State<LxApp> createState() => _LxAppState();
 }
 
-class _LxAppState extends State<LxApp> {
+class _LxAppState extends State<LxApp> with WidgetsBindingObserver {
   final _navigator = GlobalKey<NavigatorState>();
   AppController get controller => widget.controller;
   bool _hadSession = false;
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _hadSession = controller.session != null;
     controller.addListener(_sessionChanged);
   }
@@ -37,8 +40,16 @@ class _LxAppState extends State<LxApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     controller.removeListener(_sessionChanged);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) {
+      unawaited(controller.flushPlayback());
+    }
   }
 
   @override

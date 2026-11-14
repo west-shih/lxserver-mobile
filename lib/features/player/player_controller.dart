@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'playback_mode.dart';
+import 'playback_resume.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
@@ -101,6 +102,35 @@ class PlayerController extends ChangeNotifier {
   }
 
   bool _advancing = false;
+  bool _needsResume = false;
+  PlaybackSnapshot? snapshot(Session session) => current == null
+      ? null
+      : PlaybackSnapshot(
+          scope: PlaybackSnapshot.scopeFor(session),
+          songs: queue,
+          index: index,
+          position: position,
+          duration: duration,
+          quality: requestedQuality,
+          reportedQuality: reportedQuality,
+        );
+  void restorePlayback(Session session, PlaybackSnapshot state) {
+    if (state.scope != PlaybackSnapshot.scopeFor(session)) return;
+    _session = session;
+    _queue
+      ..clear()
+      ..addAll(state.songs);
+    index = state.index;
+    position = state.position;
+    duration = state.duration;
+    requestedQuality = state.quality;
+    reportedQuality = state.reportedQuality;
+    _playbackPreference = state.quality ?? preferredQuality;
+    playing = false;
+    _needsResume = true;
+    notifyListeners();
+  }
+
   void setMode(PlaybackMode value) {
     mode = value;
     unawaited(
@@ -168,6 +198,7 @@ class PlayerController extends ChangeNotifier {
     );
     _subscriptions.add(
       player.positionStream.listen((value) {
+        if (_needsResume) return;
         position = value;
         notifyListeners();
       }),
@@ -200,8 +231,11 @@ class PlayerController extends ChangeNotifier {
     Song song, {
     List<Song>? songs,
     String? quality,
+    Duration? resumePosition,
   }) async {
     if (resolving) return;
+    final previousDuration = duration;
+    _needsResume = false;
     _session = session;
     _playbackPreference = quality ?? preferredQuality;
     if (songs != null) {
@@ -228,8 +262,8 @@ class PlayerController extends ChangeNotifier {
     unawaited(loadLyrics());
     resolving = true;
     error = null;
-    position = Duration.zero;
-    duration = Duration.zero;
+    position = resumePosition ?? Duration.zero;
+    duration = resumePosition == null ? Duration.zero : previousDuration;
     notifyListeners();
     try {
       await audio.stop();
@@ -253,7 +287,12 @@ class PlayerController extends ChangeNotifier {
             api.resolvePlayback(session, song, quality: quality),
         load: (resource) async {
           // Never send LX credentials to a third-party audio CDN.
-          await _loadResource(session, song, resource);
+          await _loadResource(
+            session,
+            song,
+            resource,
+            initialPosition: resumePosition,
+          );
         },
         isCurrent: () =>
             generation == _generation && cache.scope(session) == cacheScope,
@@ -291,6 +330,11 @@ class PlayerController extends ChangeNotifier {
     } finally {
       if (generation == _generation) {
         resolving = false;
+        if (error != null && resumePosition != null) {
+          position = resumePosition;
+          duration = previousDuration;
+          _needsResume = true;
+        }
         notifyListeners();
       }
     }
@@ -379,6 +423,7 @@ class PlayerController extends ChangeNotifier {
       }
       qualityNotice = null;
       _applyResource(resource);
+      _needsResume = false;
       error = null;
       if (resume) {
         unawaited(
@@ -516,6 +561,15 @@ class PlayerController extends ChangeNotifier {
 
   Future<void> toggle() async {
     if (resolving || current == null) return;
+    if (_needsResume && _session != null) {
+      await play(
+        _session!,
+        current!,
+        quality: requestedQuality,
+        resumePosition: position,
+      );
+      return;
+    }
     if (error != null && _session != null) {
       await play(_session!, current!);
       return;
@@ -601,6 +655,18 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> seek(Duration value) async {
+    if (_needsResume) {
+      position = Duration(
+        milliseconds: value.inMilliseconds.clamp(
+          0,
+          duration.inMilliseconds > 0
+              ? duration.inMilliseconds
+              : value.inMilliseconds,
+        ),
+      );
+      notifyListeners();
+      return;
+    }
     try {
       await _audio?.seek(value);
     } catch (_) {
@@ -610,6 +676,7 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> reset() async {
+    _needsResume = false;
     ++_generation;
     cache.clear();
     ++_lyricVersion;

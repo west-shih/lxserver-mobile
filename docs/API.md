@@ -134,3 +134,5 @@
 本机存储淘汰仅修改应用私有文件及索引，不调用 LXServer 删除接口。已核对 v2.2.0 `src/server/music/cacheCleanup.ts`、`fileCache.ts` 的容量/保留期及使用保护；客户端区别及完整机制见 [PLAYBACK_ENGINE.md](PLAYBACK_ENGINE.md)。
 
 下载封面使用歌曲标准化 img 元数据，不猜测新的服务端图片接口；请求图片 CDN 时不添加 LXServer 凭据。敏感鉴权图片 URL 不写索引，可仅保存获取到的本机图片。旧记录只按同平台、同歌曲 ID 从已验证歌单/搜索结果补齐。
+
+播放状态恢复不新增服务器接口；只保存本机歌曲元数据和进度，继续时沿用原生解析/缓存流程。参考固定 v2.2.0 app.js 的 savePlaybackState/restorePlaybackState，客户端暂停恢复及队列窗口区别见 PLAYBACK_ENGINE.md。

@@ -72,3 +72,5 @@ PlaybackGlyph 为纯绘制组件，统一圆角图形，继承按钮的 IconThem
 播放内核机制集中在 [PLAYBACK_ENGINE.md](PLAYBACK_ENGINE.md)。LocalMediaController 在播放器采用资源后更新使用时间；文件查询不算播放。淘汰只按最近实际播放时间排序，旧版本优先级记录不再读取。单曲清理由控制器执行，UI 只请求确认和发送操作。
 
 LocalArtwork 由 LocalMediaController 管理：独立串行封面任务、大小与类型限制、原子写入、按平台歌曲 ID 复用及孤立文件清理。SongArt 只选择本机或网络图片提供器，不自行下载/管理文件。
+
+PlaybackSnapshot 仅包含可恢复状态；PlaybackResumeStore 管理私有文件、节流与原子串行写入。AppController 监听唯一播放器并安排保存、恢复已验证会话的快照；LxApp 通过生命周期回调补存。恢复不创建 AudioPlayer，只有显式播放才加载资源。core/song_snapshot.dart 统一歌曲最小持久化字段，复用于下载和播放快照。

@@ -97,3 +97,5 @@ flutter test integration_test/android_flow_test.dart --dart-define=LX_INTEGRATIO
 ## 手机缓存与下载（当前实现）
 
 文件位置、容量与离线边界见 [LOCAL_MEDIA.md](LOCAL_MEDIA.md)。运行 `flutter test test/local_media_test.dart` 验证文件生命周期；Android 测试仍使用 `--dart-define=LX_INTEGRATION=true --no-uninstall` 隔离包名及临时文件。真实音源的 FLAC/MP3/M4A 等编码、进程被杀和 iOS 需另行设备验证。不要清除正常包数据来运行夹具。
+
+播放恢复状态位于应用支持目录 lx_playback.json，测试通过 mediaDirectory 注入临时目录隔离。进程强杀可能丢失最近 3 秒左右未补存的进度；不宣称所有系统终止场景都能收到生命周期回调。

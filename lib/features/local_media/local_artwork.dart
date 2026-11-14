@@ -1,23 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-/// Persist public artwork URLs only; authenticated URLs may be fetched but never indexed.
-String? publicArtworkUrl(String value) {
-  final uri = Uri.tryParse(value);
-  if (uri == null ||
-      !['http', 'https'].contains(uri.scheme) ||
-      uri.userInfo.isNotEmpty ||
-      uri.queryParameters.keys.any(
-        (k) => RegExp(
-          r'token|password|authorization|signature|auth_key|access_key',
-          caseSensitive: false,
-        ).hasMatch(k),
-      )) {
-    return null;
-  }
-  return value;
-}
-
 class LocalArtwork {
   LocalArtwork(this.directory);
   final Directory directory;

@@ -7,36 +7,12 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../core/lx_api.dart';
+import '../../core/song_snapshot.dart';
 import '../player/quality.dart';
 import 'audio_transfer.dart';
 import 'local_artwork.dart';
 
 enum DownloadState { queued, resolving, downloading, paused, failed, completed }
-
-Map<String, dynamic> _songData(Song song) => {
-  if (publicArtworkUrl(song.image) != null) 'img': song.image,
-  for (final key in [
-    'name',
-    'singer',
-    'source',
-    'songmid',
-    'songId',
-    'id',
-    'albumName',
-    'interval',
-    'hash',
-    'copyrightId',
-    'strMediaMid',
-    'albumMid',
-    'albumId',
-    'hashMid',
-    'mid',
-    'sid',
-    'mediaMid',
-    'singerId',
-  ])
-    if (song.raw[key] != null) key: song.raw[key],
-};
 
 class LocalAudio {
   LocalAudio({
@@ -62,7 +38,7 @@ class LocalAudio {
   Map<String, dynamic> toJson() => {
     'id': id,
     'scope': scope,
-    'song': _songData(song),
+    'song': songSnapshotData(song),
     'quality': quality,
     'reported': reportedQuality,
     'folder': folder,
@@ -109,7 +85,7 @@ class DownloadJob {
   Map<String, dynamic> toJson() => {
     'id': id,
     'scope': scope,
-    'song': _songData(song),
+    'song': songSnapshotData(song),
     'preference': preference,
     'state': state.name,
     'replace': replace,

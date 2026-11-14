@@ -221,14 +221,6 @@ void showFileDetails(BuildContext context, AppController c, Song song) {
                           )
                         : null,
                   ),
-                if (local.values.contains('cache'))
-                  const Padding(
-                    padding: EdgeInsets.only(top: 4),
-                    child: Text(
-                      '点击已缓存的音质可清除',
-                      style: TextStyle(color: lxMuted, fontSize: 12),
-                    ),
-                  ),
                 const Divider(height: 32),
                 Row(
                   children: [
