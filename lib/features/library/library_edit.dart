@@ -10,6 +10,23 @@ class LibraryEditResult {
   final bool changed;
 }
 
+List<String> sidebarOrder(Map<String, dynamic> settings) =>
+    (settings['favoriteSidebarOrder'] is List)
+    ? (settings['favoriteSidebarOrder'] as List)
+          .whereType<String>()
+          .toSet()
+          .toList()
+    : [];
+
+List<String> mergeSidebarOrder(List<String> previous, List<String> visible) {
+  final result = <String>[];
+  var index = 0;
+  for (final id in previous) {
+    result.add(visible.contains(id) ? visible[index++] : id);
+  }
+  return [...result, ...visible.skip(index)];
+}
+
 /// Apply an edit to a freshly fetched snapshot, preserving all unrelated data.
 LibraryEditResult editLibrarySnapshot(
   Object data,
@@ -80,5 +97,40 @@ LibraryEditResult editLibrarySnapshot(
     snapshot,
     songs,
     !listEquals(before, songs.map((s) => s.id).toList()),
+  );
+}
+
+/// Reorder only userList; system lists and all playlist content stay unchanged.
+LibraryEditResult reorderLibrarySnapshot(
+  Object data,
+  List<String> order,
+  List<String> expectedOrder,
+) {
+  if (data is! Map<String, dynamic> ||
+      data['loveList'] is! List ||
+      data['defaultList'] is! List ||
+      data['userList'] is! List ||
+      (data['userList'] as List).any((v) => v is! Map<String, dynamic>)) {
+    throw const ApiFailure('歌单格式不兼容，未保存');
+  }
+  final lists = (data['userList'] as List).cast<Map<String, dynamic>>();
+  final before = lists.map((v) => '${v['id']}').toList();
+  if (!listEquals(before, expectedOrder)) {
+    throw const ApiFailure('歌单列表已发生变化，未覆盖排序；请刷新后重试');
+  }
+  if (order.length != lists.length ||
+      order.toSet().length != order.length ||
+      !setEquals(order.toSet(), before.toSet()) ||
+      order.any((id) => id == 'love' || id == 'default')) {
+    throw const ApiFailure('排序数据不完整，未保存');
+  }
+  final byId = {for (final list in lists) '${list['id']}': list};
+  return LibraryEditResult(
+    {
+      ...data,
+      'userList': [for (final id in order) byId[id]!],
+    },
+    const [],
+    !listEquals(before, order),
   );
 }

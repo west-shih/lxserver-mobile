@@ -45,9 +45,19 @@ class MusicBadge extends StatelessWidget {
       ),
       child: Text(
         label,
+        strutStyle: const StrutStyle(
+          fontSize: 10,
+          height: 1.2,
+          forceStrutHeight: true,
+          leadingDistribution: TextLeadingDistribution.even,
+        ),
+        textHeightBehavior: const TextHeightBehavior(
+          leadingDistribution: TextLeadingDistribution.even,
+        ),
         style: TextStyle(
           fontSize: 10,
-          height: 1.3,
+          height: 1.2,
+          leadingDistribution: TextLeadingDistribution.even,
           fontWeight: FontWeight.w600,
           color: Color(foreground),
         ),

@@ -750,145 +750,158 @@ class _CollectionScreenState extends State<CollectionScreen> {
                             ),
                           ),
                         if (!_searching || _selecting)
-                          SliverToBoxAdapter(
-                            child: Container(
-                              key: const ValueKey('collection-toolbar'),
-                              padding: const EdgeInsets.fromLTRB(14, 6, 10, 8),
-                              decoration: const BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.vertical(
-                                  top: Radius.circular(20),
+                          SliverPersistentHeader(
+                            pinned: true,
+                            delegate: _CollectionToolbarDelegate(
+                              height: 62,
+                              child: Container(
+                                key: const ValueKey('collection-toolbar'),
+                                padding: const EdgeInsets.fromLTRB(
+                                  14,
+                                  6,
+                                  10,
+                                  8,
                                 ),
-                              ),
-                              child: Row(
-                                children: [
-                                  if (_selecting) ...[
-                                    Checkbox(
-                                      shape: const CircleBorder(),
-                                      tristate: true,
-                                      value:
-                                          filtered.isNotEmpty &&
-                                              filtered.every(
+                                decoration: const BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.vertical(
+                                    top: Radius.circular(20),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    if (_selecting) ...[
+                                      Checkbox(
+                                        shape: const CircleBorder(),
+                                        tristate: true,
+                                        value:
+                                            filtered.isNotEmpty &&
+                                                filtered.every(
+                                                  (s) =>
+                                                      _selected.contains(s.id),
+                                                )
+                                            ? true
+                                            : filtered.any(
                                                 (s) => _selected.contains(s.id),
                                               )
-                                          ? true
-                                          : filtered.any(
-                                              (s) => _selected.contains(s.id),
-                                            )
-                                          ? null
-                                          : false,
-                                      onChanged:
-                                          _saving ||
-                                              _dragging ||
-                                              filtered.isEmpty
-                                          ? null
-                                          : (_) => setState(() {
-                                              if (filtered.every(
-                                                (s) => _selected.contains(s.id),
-                                              )) {
-                                                _selected.removeAll(
-                                                  filtered.map((s) => s.id),
-                                                );
-                                              } else {
-                                                _selected.addAll(
-                                                  filtered.map((s) => s.id),
-                                                );
-                                              }
-                                            }),
-                                    ),
-                                    const Text(
-                                      '全选',
-                                      style: TextStyle(fontSize: 14),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        _selected.isEmpty
-                                            ? ''
-                                            : '已选 ${_selected.length} 首',
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          color: lxMuted,
-                                        ),
-                                      ),
-                                    ),
-                                    TextButton(
-                                      onPressed: _saving || _dragging
-                                          ? null
-                                          : () => _finishEditing(),
-                                      child: const Text('完成'),
-                                    ),
-                                  ] else ...[
-                                    IconButton.filled(
-                                      key: const ValueKey('collection-play'),
-                                      tooltip: _more ? '播放已加载歌曲' : '播放全部',
-                                      onPressed:
-                                          _songs.isEmpty || c.session == null
-                                          ? null
-                                          : () => c.player.play(
-                                              c.session!,
-                                              _songs.first,
-                                              songs: _songs,
-                                            ),
-                                      style: IconButton.styleFrom(
-                                        minimumSize: const Size(32, 32),
-                                        fixedSize: const Size(32, 32),
-                                        padding: EdgeInsets.zero,
-                                        tapTargetSize:
-                                            MaterialTapTargetSize.shrinkWrap,
-                                      ),
-                                      icon: const Icon(
-                                        Icons.play_arrow_rounded,
-                                        size: 23,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    const Text(
-                                      '播放全部',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        '${_songs.length} 首${_more ? ' · 已加载' : ''}',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          color: lxMuted,
-                                        ),
-                                      ),
-                                    ),
-                                    if (!widget.editable &&
-                                        collection.source != null &&
-                                        widget.fetchPage != null)
-                                      IconButton(
-                                        tooltip: collected ? '取消收藏歌单' : '收藏歌单',
-                                        onPressed:
-                                            _saving ||
-                                                c.library.mutating ||
-                                                c.session == null
                                             ? null
-                                            : _collect,
-                                        icon: Icon(
-                                          collected
-                                              ? Icons.favorite_rounded
-                                              : Icons.favorite_border_rounded,
-                                          color: collected ? lxGreen : lxInk,
+                                            : false,
+                                        onChanged:
+                                            _saving ||
+                                                _dragging ||
+                                                filtered.isEmpty
+                                            ? null
+                                            : (_) => setState(() {
+                                                if (filtered.every(
+                                                  (s) =>
+                                                      _selected.contains(s.id),
+                                                )) {
+                                                  _selected.removeAll(
+                                                    filtered.map((s) => s.id),
+                                                  );
+                                                } else {
+                                                  _selected.addAll(
+                                                    filtered.map((s) => s.id),
+                                                  );
+                                                }
+                                              }),
+                                      ),
+                                      const Text(
+                                        '全选',
+                                        style: TextStyle(fontSize: 14),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          _selected.isEmpty
+                                              ? ''
+                                              : '已选 ${_selected.length} 首',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            color: lxMuted,
+                                          ),
                                         ),
                                       ),
-                                    IconButton(
-                                      tooltip: '批量操作',
-                                      onPressed: _songs.isEmpty
-                                          ? null
-                                          : () => _selectionMode(true),
-                                      icon: const PlaylistEditGlyph(),
-                                    ),
+                                      TextButton(
+                                        onPressed: _saving || _dragging
+                                            ? null
+                                            : () => _finishEditing(),
+                                        child: const Text('完成'),
+                                      ),
+                                    ] else ...[
+                                      IconButton.filled(
+                                        key: const ValueKey('collection-play'),
+                                        tooltip: _more ? '播放已加载歌曲' : '播放全部',
+                                        onPressed:
+                                            _songs.isEmpty || c.session == null
+                                            ? null
+                                            : () => c.player.play(
+                                                c.session!,
+                                                _songs.first,
+                                                songs: _songs,
+                                              ),
+                                        style: IconButton.styleFrom(
+                                          minimumSize: const Size(32, 32),
+                                          fixedSize: const Size(32, 32),
+                                          padding: EdgeInsets.zero,
+                                          tapTargetSize:
+                                              MaterialTapTargetSize.shrinkWrap,
+                                        ),
+                                        icon: const Icon(
+                                          Icons.play_arrow_rounded,
+                                          size: 23,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      const Text(
+                                        '播放全部',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          '${_songs.length} 首${_more ? ' · 已加载' : ''}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            color: lxMuted,
+                                          ),
+                                        ),
+                                      ),
+                                      if (!widget.editable &&
+                                          collection.source != null &&
+                                          widget.fetchPage != null)
+                                        IconButton(
+                                          tooltip: collected
+                                              ? '取消收藏歌单'
+                                              : '收藏歌单',
+                                          onPressed:
+                                              _saving ||
+                                                  c.library.mutating ||
+                                                  c.session == null
+                                              ? null
+                                              : _collect,
+                                          icon: Icon(
+                                            collected
+                                                ? Icons.favorite_rounded
+                                                : Icons.favorite_border_rounded,
+                                            color: collected ? lxGreen : lxInk,
+                                          ),
+                                        ),
+                                      IconButton(
+                                        tooltip: '批量操作',
+                                        onPressed: _songs.isEmpty
+                                            ? null
+                                            : () => _selectionMode(true),
+                                        icon: const PlaylistEditGlyph(),
+                                      ),
+                                    ],
                                   ],
-                                ],
+                                ),
                               ),
                             ),
                           ),
@@ -1095,4 +1108,26 @@ class _CollectionScreenState extends State<CollectionScreen> {
       );
     },
   );
+}
+
+class _CollectionToolbarDelegate extends SliverPersistentHeaderDelegate {
+  _CollectionToolbarDelegate({required this.height, required this.child});
+  final double height;
+  final Widget child;
+  @override
+  double get minExtent => height;
+  @override
+  double get maxExtent => height;
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) => Material(
+    color: Colors.white,
+    elevation: overlapsContent ? 1 : 0,
+    child: child,
+  );
+  @override
+  bool shouldRebuild(covariant _CollectionToolbarDelegate oldDelegate) => true;
 }

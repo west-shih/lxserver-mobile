@@ -75,10 +75,10 @@ LocalArtwork 由 LocalMediaController 管理：独立串行封面任务、大小
 
 PlaybackSnapshot 仅包含可恢复状态；PlaybackResumeStore 管理私有文件、节流与原子串行写入。AppController 监听唯一播放器并安排保存、恢复已验证会话的快照；LxApp 通过生命周期回调补存。恢复不创建 AudioPlayer，只有显式播放才加载资源。core/song_snapshot.dart 统一歌曲最小持久化字段，复用于下载和播放快照。
 
-CollectionMenu 为音乐库与详情共用的歌单操作入口；CollectionScreen 区分私人可编辑歌单与外部在线详情，并订阅 LibraryController 的封面/标题变化。CollectionHeader 只渲染可用元数据；CollectionMetadata 在 data 边界解析 author/desc/play_count/time，DiscoveryController 合并列表与详情字段，经 SongBatch 交付页面；originalSummary 在收藏跳转时按 source/原 ID 复用已加载列表摘要，保留详情接口未返回的日期，不新增搜索请求。私人收藏记录缺少这些字段时不伪造，也不新增未经核对的持久化字段。
+音乐库长按通过 showCollectionActions 弹出操作面板，详情保留 CollectionMenu；两者复用 performCollectionAction。CollectionScreen 区分私人可编辑歌单与外部在线详情，并订阅 LibraryController 的封面/标题变化。CollectionHeader 只渲染可用元数据；CollectionMetadata 在 data 边界解析 author/desc/play_count/time，DiscoveryController 合并列表与详情字段，经 SongBatch 交付页面；originalSummary 在收藏跳转时按 source/原 ID 复用已加载列表摘要，保留详情接口未返回的日期，不新增搜索请求。私人收藏记录缺少这些字段时不伪造，也不新增未经核对的持久化字段。
 
 LibraryController 在完整分页后聚合歌曲/封面；收藏重读快照查重，再通过 LxApi 保存原生字段。librarySong 对齐上游 formatSongToLxMusicStandard 的 id/meta，同时保留额外字段。显式同步只以非空来源图更新 Album；操作期间保持写入锁，reset/dispose 使旧操作失效。UI 不发送 HTTP。
 
-CollectionScreen 用单个 CustomScrollView 组织可滚动头部、播放工具栏和歌曲；搜索在导航按需展开，PopScope 优先退出搜索/选择。搜索/分页只派生显示条目，不改变已加载播放队列。多选状态归详情页所有，PlayerController.enqueueNext 将选择歌曲去重放在当前歌曲之后且不自动播放；批量下载经 LocalMediaController，页面不管理文件。分页模式及数量由 AppController/SessionStore 保存。ScrollingTitle 只对超宽标题运行动画并遵循系统减少动态效果，保留完整无障碍标签。
+CollectionScreen 用单个 CustomScrollView 组织可滚动头部、SliverPersistentHeader 吸附工具栏和歌曲；搜索在导航按需展开，PopScope 优先退出搜索/选择。搜索/分页只派生显示条目，不改变已加载播放队列。多选状态归详情页所有，PlayerController.enqueueNext 将选择歌曲去重放在当前歌曲之后且不自动播放；批量下载经 LocalMediaController，页面不管理文件。分页模式及数量由 AppController/SessionStore 保存。ScrollingTitle 只对超宽标题运行动画并遵循系统减少动态效果，保留完整无障碍标签。
 
-私人歌曲编辑通过 LibraryController.editSongs 统一管理写入锁和会话版本；library_edit 是纯快照变换，保留未知字段并检查排序基线。CollectionScreen 只持有选择和排序草稿，调用控制器保存，不直接请求 HTTP。确认删除可合并待保存顺序，成功回查失败不会重发写入。编辑工具栏由 CollectionEditActions 和 PlaylistEditGlyph 提供；原平台歌单没有对应写接口，显示只读边界。
+私人歌曲编辑通过 LibraryController.editSongs/_editSnapshot 保存，歌单混排通过 reorderCollections 协调歌单数据与账号显示设置，两者共用控制器写入锁和会话版本；library_edit 是纯快照变换，保留未知字段并检查排序基线。CollectionScreen 只持有选择和排序草稿，调用控制器保存，不直接请求 HTTP。确认删除可合并待保存顺序，成功回查失败不会重发写入。编辑工具栏由 CollectionEditActions 和 PlaylistEditGlyph 提供；原平台歌单没有对应写接口，显示只读边界。LibraryScreen 的 SliverReorderableList 包含全部歌单，系统项可移动但不可删除/改名；松手后暂显新顺序，控制器先 GET 最新歌单/账号设置，检查完整显示顺序，仅在自建项相对顺序变化时 POST 歌单，再 POST 保留其他字段的 favoriteSidebarOrder。网页隐藏入口保持原位置，新增歌单追加展示；读取设置失败不阻止浏览，但保存时必须有合法设置。双写无事务，部分失败展示已确认状态和明确提示，不自动回滚或重试写入。分类复用 ChoiceChip；MusicBadge 使用均匀 leading 和统一 strut，改善中英字体混排的垂直对齐。

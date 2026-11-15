@@ -549,7 +549,7 @@ void main() {
   );
 
   testWidgets(
-    'Paging resets scroll, keeps full queue, and header scrolls away',
+    'Paging resets scroll, keeps full queue, and playback toolbar stays pinned',
     (tester) async {
       final c = AppController()..pagedCollections = true;
       final songs = List.generate(
@@ -570,7 +570,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey('collection-play')).hitTestable(),
-        findsNothing,
+        findsOneWidget,
       );
       await tester.tap(find.byTooltip('下一页'));
       await tester.pumpAndSettle();

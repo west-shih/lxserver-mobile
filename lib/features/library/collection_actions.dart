@@ -192,3 +192,55 @@ Future<bool> performCollectionAction(
   }
   return false;
 }
+
+Future<void> showCollectionActions(
+  BuildContext context,
+  AppController controller,
+  MusicCollection collection,
+) async {
+  if (collection.isSystem || controller.library.mutating) return;
+  final action = await showModalBottomSheet<String>(
+    context: context,
+    showDragHandle: true,
+    builder: (context) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: Text(
+              collection.name,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.edit_rounded),
+            title: const Text('重命名'),
+            onTap: () => Navigator.pop(context, 'rename'),
+          ),
+          if (collection.isLinked) ...[
+            ListTile(
+              leading: const Icon(Icons.sync_rounded),
+              title: const Text('刷新同步'),
+              onTap: () => Navigator.pop(context, 'refresh'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.open_in_new_rounded),
+              title: const Text('打开原始歌单'),
+              onTap: () => Navigator.pop(context, 'open'),
+            ),
+          ],
+          ListTile(
+            leading: const Icon(Icons.delete_outline_rounded),
+            title: const Text('删除歌单'),
+            onTap: () => Navigator.pop(context, 'delete'),
+          ),
+        ],
+      ),
+    ),
+  );
+  if (action != null && context.mounted) {
+    await performCollectionAction(context, controller, collection, action);
+  }
+}

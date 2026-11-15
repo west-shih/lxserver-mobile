@@ -79,11 +79,26 @@ List<Song> parseSongs(Object? json, {MusicSource fallback = MusicSource.kw}) {
       .toList();
 }
 
+List<MusicCollection> orderCollections(
+  List<MusicCollection> collections,
+  List<String> order,
+) {
+  final remaining = {for (final item in collections) item.id: item};
+  return [
+    for (final id in order)
+      if (remaining.containsKey(id)) remaining.remove(id)!,
+    ...remaining.values,
+  ];
+}
+
 class LibraryController extends ChangeNotifier {
   LibraryController(this.api, this.onUnauthorized);
   final LxApi api;
   final VoidCallback onUnauthorized;
   List<MusicCollection> collections = [];
+  List<String> _sidebarOrder = [];
+  List<MusicCollection> _ordered(Object? data) =>
+      orderCollections(parseCollections(data), _sidebarOrder);
   List<Map<String, dynamic>> artists = [];
   List<Map<String, dynamic>> albums = [];
   bool loading = false;
@@ -120,8 +135,18 @@ class LibraryController extends ChangeNotifier {
 
     await Future.wait([
       part('/api/user/list', (json) {
-        collections = parseCollections(json);
+        collections = _ordered(json);
       }, (message) => error = message),
+      part(
+        '/api/user/settings',
+        (json) {
+          if (json is Map<String, dynamic>) {
+            _sidebarOrder = sidebarOrder(json);
+            collections = orderCollections(collections, _sidebarOrder);
+          }
+        },
+        (_) {}, // Optional display settings must not hide the music library.
+      ),
       part(
         '/api/user/library/artists',
         (json) => artists = _entities(json),
@@ -323,6 +348,141 @@ class LibraryController extends ChangeNotifier {
     List<String>? order,
     List<String>? expectedOrder,
   }) async {
+    await _editSnapshot(
+      session,
+      (data) => editLibrarySnapshot(
+        data,
+        collection.id,
+        removeIds: removeIds,
+        addSongs: addSongs,
+        order: order,
+        expectedOrder: expectedOrder,
+      ),
+    );
+    return collections.where((v) => v.id == collection.id).firstOrNull?.songs ??
+        [];
+  }
+
+  Future<void> reorderCollections(
+    Session session,
+    List<String> order,
+    List<String> expectedOrder,
+  ) async {
+    if (mutating) throw const ApiFailure('歌单正在保存，请稍后重试');
+    final version = _version;
+    final mutationVersion = ++_mutationVersion;
+    mutating = true;
+    notifyListeners();
+    LibraryEditResult? confirmed;
+    var settingsSaved = false;
+    try {
+      final replies = await Future.wait([
+        api.read(session, '/api/user/list'),
+        api.read(session, '/api/user/settings'),
+      ]);
+      if (version != _version || mutationVersion != _mutationVersion) {
+        throw const ApiFailure('会话或歌单状态已改变，请刷新后重试');
+      }
+      final settings = replies[1];
+      if (settings is! Map<String, dynamic>) {
+        throw const ApiFailure('账号设置格式不兼容，未保存排序');
+      }
+      final savedOrder = settings['favoriteSidebarOrder'];
+      if (savedOrder != null &&
+          (savedOrder is! List || savedOrder.any((id) => id is! String))) {
+        throw const ApiFailure('账号显示顺序格式不兼容，未保存排序');
+      }
+      final latest = parseCollections(replies[0]);
+      final previous = sidebarOrder(settings);
+      final visible = orderCollections(
+        latest,
+        previous,
+      ).map((v) => v.id).toList();
+      if (!listEquals(visible, expectedOrder)) {
+        throw const ApiFailure('歌单列表已发生变化，请刷新后重试');
+      }
+      if (order.length != visible.length ||
+          order.toSet().length != order.length ||
+          !setEquals(order.toSet(), visible.toSet())) {
+        throw const ApiFailure('排序数据不完整，未保存');
+      }
+      final custom = latest.where((v) => !v.isSystem).map((v) => v.id).toList();
+      final edited = reorderLibrarySnapshot(
+        replies[0],
+        order.where(custom.contains).toList(),
+        custom,
+      );
+      if (edited.changed) {
+        final result = await api.writeList(session, edited.snapshot);
+        if (result is! Map || result['success'] != true) {
+          throw const ApiFailure('服务端未确认歌单排序保存成功');
+        }
+        confirmed = edited;
+      }
+      if (mutationVersion != _mutationVersion) {
+        throw const ApiFailure('会话已改变，请重新加载');
+      }
+      final next = mergeSidebarOrder(previous, order);
+      if (!listEquals(previous, next)) {
+        final result = await api.writeUserSettings(session, {
+          ...settings,
+          'favoriteSidebarOrder': next,
+        });
+        if (result is! Map || result['success'] != true) {
+          throw const ApiFailure('服务端未确认显示顺序保存成功');
+        }
+      }
+      if (mutationVersion != _mutationVersion) {
+        throw const ApiFailure('会话已改变，请重新加载');
+      }
+      settingsSaved = true;
+      _sidebarOrder = next;
+      final readVersion = ++_version;
+      loading = false;
+      collections = _ordered(edited.snapshot);
+      error = null;
+      notifyListeners();
+      try {
+        final fresh = await Future.wait([
+          api.read(session, '/api/user/list'),
+          api.read(session, '/api/user/settings'),
+        ]);
+        if (readVersion == _version && mutationVersion == _mutationVersion) {
+          if (fresh[1] is! Map<String, dynamic>) {
+            throw const ApiFailure('账号设置格式不兼容');
+          }
+          _sidebarOrder = sidebarOrder(fresh[1] as Map<String, dynamic>);
+          collections = _ordered(fresh[0]);
+        }
+      } on ApiFailure catch (e) {
+        if (e.unauthorized) rethrow;
+        if (mutationVersion == _mutationVersion) error = '排序已保存，但重新读取失败，请刷新';
+      } catch (_) {
+        if (mutationVersion == _mutationVersion) error = '排序已保存，但重新读取失败，请刷新';
+      }
+    } on ApiFailure catch (e) {
+      if (mutationVersion == _mutationVersion) {
+        if (e.unauthorized) onUnauthorized();
+        if (!e.unauthorized && confirmed != null && !settingsSaved) {
+          ++_version;
+          loading = false;
+          collections = _ordered(confirmed.snapshot);
+          throw const ApiFailure('私人歌单顺序已保存，但显示顺序未确认保存，请刷新后重试');
+        }
+      }
+      rethrow;
+    } finally {
+      if (mutationVersion == _mutationVersion) {
+        mutating = false;
+        if (!_disposed) notifyListeners();
+      }
+    }
+  }
+
+  Future<void> _editSnapshot(
+    Session session,
+    LibraryEditResult Function(Object) transform,
+  ) async {
     if (mutating) throw const ApiFailure('歌单正在保存，请稍后重试');
     final version = _version;
     final mutationVersion = ++_mutationVersion;
@@ -333,14 +493,7 @@ class LibraryController extends ChangeNotifier {
       if (version != _version || mutationVersion != _mutationVersion) {
         throw const ApiFailure('会话或歌单状态已改变，请重试');
       }
-      final edited = editLibrarySnapshot(
-        data,
-        collection.id,
-        removeIds: removeIds,
-        addSongs: addSongs,
-        order: order,
-        expectedOrder: expectedOrder,
-      );
+      final edited = transform(data);
       if (edited.changed) {
         final result = await api.writeList(session, edited.snapshot);
         if (result is! Map || result['success'] != true) {
@@ -352,14 +505,14 @@ class LibraryController extends ChangeNotifier {
       }
       final readVersion = ++_version;
       loading = false;
-      collections = parseCollections(edited.snapshot);
+      collections = _ordered(edited.snapshot);
       error = null;
       notifyListeners();
       if (edited.changed) {
         try {
           final fresh = await api.read(session, '/api/user/list');
           if (mutationVersion == _mutationVersion && readVersion == _version) {
-            collections = parseCollections(fresh);
+            collections = _ordered(fresh);
             notifyListeners();
           }
         } on ApiFailure catch (e) {
@@ -372,11 +525,6 @@ class LibraryController extends ChangeNotifier {
       if (mutationVersion != _mutationVersion) {
         throw const ApiFailure('会话已改变，请重新加载歌单');
       }
-      return collections
-              .where((v) => v.id == collection.id)
-              .firstOrNull
-              ?.songs ??
-          edited.songs;
     } on ApiFailure catch (e) {
       if (mutationVersion == _mutationVersion && e.unauthorized) {
         onUnauthorized();
@@ -395,6 +543,7 @@ class LibraryController extends ChangeNotifier {
     ++_mutationVersion;
     mutating = false;
     collections = [];
+    _sidebarOrder = [];
     artists = [];
     albums = [];
     loading = false;

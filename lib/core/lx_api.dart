@@ -282,6 +282,15 @@ class LxApi {
         body: data,
       );
 
+  Future<Object> writeUserSettings(Session s, Map<String, dynamic> data) =>
+      _requestJson(
+        s.server,
+        '/api/user/settings',
+        session: s,
+        method: 'POST',
+        body: data,
+      );
+
   Future<Object> read(
     Session s,
     String path, {
