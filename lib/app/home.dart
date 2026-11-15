@@ -5,6 +5,8 @@ import '../features/settings/personal_center_screen.dart';
 import '../features/local_media/local_media_screens.dart';
 import 'theme.dart';
 import '../features/search/search_screen.dart';
+import '../features/search/entity_search_screen.dart';
+import '../features/search/music_entity.dart';
 import '../features/library/library_screen.dart';
 import '../features/discovery/discovery_screen.dart';
 import '../features/player/player_views.dart';
@@ -33,7 +35,11 @@ class _MusicHomeState extends State<MusicHome> {
     FocusScope.of(context).unfocus();
     final c = widget.controller;
     if (_tab == 0) {
-      c.search(value);
+      if (c.entitySearch.kind == SearchKind.song) {
+        c.search(value);
+      } else if (c.session != null && c.entitySources.isNotEmpty) {
+        c.entitySearch.search(c.session!, value);
+      }
     } else if (_tab == 1 && c.session != null) {
       c.discovery.keyword = value.trim();
       c.discovery.load(c.session!);
@@ -73,7 +79,7 @@ class _MusicHomeState extends State<MusicHome> {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
+              padding: const EdgeInsets.fromLTRB(16, 6, 8, 0),
               child: SizedBox(
                 height: searchHeight + 8,
                 child: Row(
@@ -99,7 +105,9 @@ class _MusicHomeState extends State<MusicHome> {
                                 textInputAction: TextInputAction.search,
                                 onSubmitted: _search,
                                 decoration: InputDecoration(
-                                  hintText: _tab == 0 ? '搜索音乐' : '搜索歌单',
+                                  hintText: _tab == 0
+                                      ? '搜索${c.entitySearch.kind.label}'
+                                      : '搜索歌单',
                                   isDense: true,
                                   hintStyle: const TextStyle(
                                     fontSize: 14,
@@ -158,21 +166,75 @@ class _MusicHomeState extends State<MusicHome> {
                         icon: const Icon(Icons.downloading_rounded, size: 23),
                       ),
                     const SizedBox(width: 6),
-                    IconButton(
-                      tooltip: '个人中心',
-                      onPressed: _account,
-                      icon: CircleAvatar(
-                        radius: 16,
-                        backgroundColor: const Color(0xFFE0F3E9),
-                        child: Text(
-                          c.session!.username.characters.first.toUpperCase(),
-                          style: const TextStyle(
+                    if (_tab == 0)
+                      PopupMenuButton<SearchKind>(
+                        tooltip: '搜索类型',
+                        initialValue: c.entitySearch.kind,
+                        onSelected: (value) =>
+                            c.selectSearchKind(value, _songQuery.text),
+                        itemBuilder: (_) => SearchKind.values
+                            .map(
+                              (kind) => PopupMenuItem(
+                                value: kind,
+                                child: Row(
+                                  children: [
+                                    Expanded(child: Text(kind.label)),
+                                    if (kind == c.entitySearch.kind)
+                                      const Icon(
+                                        Icons.check_rounded,
+                                        color: lxGreen,
+                                        size: 18,
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
                             color: lxGreen,
-                            fontWeight: FontWeight.bold,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                c.entitySearch.kind.label,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.expand_more_rounded,
+                                size: 18,
+                                color: Colors.white,
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      IconButton(
+                        tooltip: '个人中心',
+                        onPressed: _account,
+                        icon: CircleAvatar(
+                          radius: 16,
+                          backgroundColor: const Color(0xFFE0F3E9),
+                          child: Text(
+                            c.session!.username.characters.first.toUpperCase(),
+                            style: const TextStyle(
+                              color: lxGreen,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -181,7 +243,9 @@ class _MusicHomeState extends State<MusicHome> {
               child: IndexedStack(
                 index: _tab,
                 children: [
-                  SearchScreen(controller: c),
+                  c.entitySearch.kind == SearchKind.song
+                      ? SearchScreen(controller: c)
+                      : EntitySearchScreen(controller: c),
                   DiscoveryScreen(controller: c),
                   LibraryScreen(controller: c),
                 ],

@@ -11,6 +11,7 @@ import '../../core/lx_api.dart';
 import '../../core/page_window.dart';
 import '../../shared/scrolling_title.dart';
 import '../../shared/song_tile.dart';
+import '../../shared/play_all_control.dart';
 import '../../shared/playlist_edit_glyph.dart';
 import '../../shared/result_pagination.dart';
 import '../discovery/discovery_controller.dart';
@@ -811,47 +812,22 @@ class _CollectionScreenState extends State<CollectionScreen> {
                                         child: const Text('完成'),
                                       ),
                                     ] else ...[
-                                      IconButton.filled(
-                                        key: const ValueKey('collection-play'),
-                                        tooltip: _more ? '播放已加载歌曲' : '播放全部',
-                                        onPressed:
-                                            _songs.isEmpty || c.session == null
-                                            ? null
-                                            : () => c.player.play(
-                                                c.session!,
-                                                _songs.first,
-                                                songs: _songs,
-                                              ),
-                                        style: IconButton.styleFrom(
-                                          minimumSize: const Size(32, 32),
-                                          fixedSize: const Size(32, 32),
-                                          padding: EdgeInsets.zero,
-                                          tapTargetSize:
-                                              MaterialTapTargetSize.shrinkWrap,
-                                        ),
-                                        icon: const Icon(
-                                          Icons.play_arrow_rounded,
-                                          size: 23,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      const Text(
-                                        '播放全部',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
                                       Expanded(
-                                        child: Text(
-                                          '${_songs.length} 首${_more ? ' · 已加载' : ''}',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            color: lxMuted,
+                                        child: PlayAllControl(
+                                          buttonKey: const ValueKey(
+                                            'collection-play',
                                           ),
+                                          count: _songs.length,
+                                          loadedOnly: _more,
+                                          onPlay:
+                                              _songs.isEmpty ||
+                                                  c.session == null
+                                              ? null
+                                              : () => c.player.play(
+                                                  c.session!,
+                                                  _songs.first,
+                                                  songs: _songs,
+                                                ),
                                         ),
                                       ),
                                       if (!widget.editable &&

@@ -9,8 +9,10 @@ class CollectionEditActions extends StatelessWidget {
     this.onCollect,
     this.onDownload,
     this.onDelete,
+    this.showDelete = true,
   });
   final VoidCallback? onNext, onCollect, onDownload, onDelete;
+  final bool showDelete;
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -20,7 +22,7 @@ class CollectionEditActions extends StatelessWidget {
         _action('下一首播放', Icons.playlist_play_rounded, onNext),
         _action('收藏到歌单', Icons.playlist_add_rounded, onCollect),
         _action('下载', Icons.download_rounded, onDownload),
-        _action('删除', Icons.delete_outline_rounded, onDelete),
+        if (showDelete) _action('删除', Icons.delete_outline_rounded, onDelete),
       ],
     ),
   );

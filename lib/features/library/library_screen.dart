@@ -6,6 +6,8 @@ import '../../core/lx_api.dart';
 import '../../shared/song_art.dart';
 import '../../shared/platform_filters.dart';
 import 'collection_screen.dart';
+import '../search/music_entity.dart';
+import '../search/entity_widgets.dart';
 import 'collection_actions.dart';
 import 'library_controller.dart';
 
@@ -154,21 +156,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
     final c = widget.controller;
     final session = c.session;
     if (session == null) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute<void>(
-        builder: (_) => CollectionScreen(
-          controller: c,
-          collection: MusicCollection(
-            '${entity['id']}',
-            '${entity['name'] ?? '收藏'}',
-            [],
-            image: '${entity['picUrl'] ?? ''}',
-          ),
-          fetchPage: (_) => c.library.entitySongs(session, entity, artist),
-        ),
-      ),
-    );
+    final source = MusicSource.values
+        .where((s) => s.name == entity['source'])
+        .firstOrNull;
+    if (source == null) return;
+    openEntity(context, c, MusicEntity(entity, source, artist));
   }
 
   @override
@@ -179,6 +171,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
       final collections = _ordered ?? library.collections;
 
       final entities = _tab == 1 ? library.artists : library.albums;
+      final albumCards = <MusicEntity>[];
+      if (_tab == 2) {
+        for (final entity in entities) {
+          final source = MusicSource.values
+              .where((s) => s.name == entity['source'])
+              .firstOrNull;
+          if (source != null) {
+            albumCards.add(MusicEntity(entity, source, false));
+          }
+        }
+      }
       final error = _tab == 0
           ? library.error
           : _tab == 1
@@ -242,11 +245,18 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 itemBuilder: (_, index) =>
                     _collectionTile(collections[index], dragIndex: index),
               )
+            else if (_tab == 2 && albumCards.length == entities.length)
+              EntityGrid(controller: widget.controller, items: albumCards)
             else
               SliverList.builder(
                 itemCount: count,
                 itemBuilder: (context, index) {
                   final entity = entities[index];
+                  final source = MusicSource.values
+                      .where((s) => s.name == entity['source'])
+                      .firstOrNull;
+                  final singer =
+                      '${entity['artistName'] ?? entity['singer'] ?? ''}';
                   return ListTile(
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -262,17 +272,43 @@ class _LibraryScreenState extends State<LibraryScreen> {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 15),
                     ),
-                    subtitle: _tab == 1
-                        ? null
-                        : Text(
-                            '${entity['artistName'] ?? entity['singer'] ?? ''}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: lxMuted,
-                            ),
-                          ),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: SizedBox(
+                        height: MediaQuery.textScalerOf(context).scale(20),
+                        child: Row(
+                          children: [
+                            if (source != null)
+                              Transform.translate(
+                                offset: Offset(
+                                  0,
+                                  MediaQuery.textScalerOf(context).scale(1),
+                                ),
+                                child: EntityBadge(source: source),
+                              )
+                            else
+                              const Text(
+                                '平台未知',
+                                style: TextStyle(fontSize: 10, color: lxMuted),
+                              ),
+                            if (_tab == 2 && singer.isNotEmpty) ...[
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  singer,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: lxMuted,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
                     onTap: () => _entity(entity, _tab == 1),
                   );
                 },

@@ -17,7 +17,14 @@ Map<String, String> artworkHeaders(String url) {
 }
 
 class SongArt extends StatelessWidget {
-  const SongArt({super.key, this.url = '', this.size = 52, this.localPath});
+  const SongArt({
+    super.key,
+    this.url = '',
+    this.size = 52,
+    this.localPath,
+    this.borderRadius,
+  });
+  final double? borderRadius;
   final String? localPath;
   final String url;
   final double size;
@@ -37,7 +44,7 @@ class SongArt extends StatelessWidget {
       child: Icon(Icons.music_note_rounded, color: lxGreen, size: size * .4),
     );
     return ClipRRect(
-      borderRadius: BorderRadius.circular(size * .2),
+      borderRadius: BorderRadius.circular(borderRadius ?? size * .2),
       child: localPath != null
           ? Image(
               image: ResizeImage.resizeIfNeeded(
@@ -48,7 +55,8 @@ class SongArt extends StatelessWidget {
               width: size,
               height: size,
               fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => SongArt(url: url, size: size),
+              errorBuilder: (_, _, _) =>
+                  SongArt(url: url, size: size, borderRadius: borderRadius),
             )
           : url.isEmpty
           ? placeholder

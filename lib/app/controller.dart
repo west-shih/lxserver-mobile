@@ -14,6 +14,8 @@ import '../features/library/server_files_controller.dart';
 import '../features/local_media/local_media_controller.dart';
 import '../features/discovery/discovery_controller.dart';
 import '../features/search/source_availability.dart';
+import '../features/search/entity_search_controller.dart';
+import '../features/search/music_entity.dart';
 
 class AppController extends ChangeNotifier {
   AppController({LxApi? api, Future<Directory> Function()? mediaDirectory})
@@ -39,6 +41,8 @@ class AppController extends ChangeNotifier {
     localMedia.addListener(player.refreshQualityAvailability);
     library = LibraryController(this.api, expire);
     discovery = DiscoveryController(this.api, expire);
+    entitySearch = EntitySearchController(this.api, expire);
+    entitySearch.addListener(notifyListeners);
   }
   final LxApi api;
   final store = SessionStore();
@@ -126,6 +130,31 @@ class AppController extends ChangeNotifier {
 
   late final LibraryController library;
   late final DiscoveryController discovery;
+  late final EntitySearchController entitySearch;
+  List<MusicSource> get entitySources =>
+      availableSources.where(supportsEntities).toList();
+  Future<void> selectSearchKind(SearchKind kind, String query) async {
+    final active = session;
+    if (active == null) return;
+    final candidate = entitySearch.kind == SearchKind.song
+        ? source
+        : entitySearch.source;
+    final platform = entitySources.contains(candidate)
+        ? candidate
+        : (entitySources.firstOrNull ?? MusicSource.wy);
+    if (kind == SearchKind.song) {
+      await entitySearch.select(active, kind, platform, query);
+      if (query.trim().isNotEmpty) await search(query);
+    } else if (entitySources.isNotEmpty) {
+      await entitySearch.select(active, kind, platform, query);
+    } else {
+      entitySearch.clear();
+      entitySearch.kind = kind;
+      entitySearch.keyword = query.trim();
+      notifyListeners();
+    }
+  }
+
   Session? session;
   String server = '';
   String? authError;
@@ -351,6 +380,7 @@ class AppController extends ChangeNotifier {
     library.reset();
     serverFiles.reset();
     discovery.reset();
+    entitySearch.reset();
     notifyListeners();
     try {
       await player.reset();
@@ -444,8 +474,28 @@ class AppController extends ChangeNotifier {
     } finally {
       if (version == _capabilityVersion) {
         checkingSources = false;
+        if (entitySearch.kind != SearchKind.song) {
+          if (entitySources.isEmpty) {
+            entitySearch.clear();
+          } else if (!entitySources.contains(entitySearch.source)) {
+            unawaited(
+              entitySearch.select(
+                active,
+                entitySearch.kind,
+                entitySources.first,
+                entitySearch.keyword,
+              ),
+            );
+          } else if (reloadResults && entitySearch.keyword.isNotEmpty) {
+            unawaited(entitySearch.search(active, entitySearch.keyword));
+          }
+        }
         notifyListeners();
-        if (reloadResults && keyword.isNotEmpty) unawaited(search(keyword));
+        if (reloadResults &&
+            entitySearch.kind == SearchKind.song &&
+            keyword.isNotEmpty) {
+          unawaited(search(keyword));
+        }
       }
     }
   }
@@ -579,6 +629,8 @@ class AppController extends ChangeNotifier {
     serverFiles.dispose();
     library.dispose();
     discovery.dispose();
+    entitySearch.removeListener(notifyListeners);
+    entitySearch.dispose();
     api.close();
     super.dispose();
   }

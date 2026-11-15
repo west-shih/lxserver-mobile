@@ -1,5 +1,18 @@
 # LXServer API 调研清单
 
+## 歌手与专辑（R028，v2.2.0）
+
+基线仍为 `upstream-baseline.json` 的 v2.2.0 / `13865b82b19fe51219e3e21948c104a50e6fcebc`，只读脚本校验通过。源码证据：`src/server/server.ts` 搜索/artistDetail/artistSongs/artistAlbums/albumSongs 与 user/library 路由，`src/modules/utils/musicSdk/{wy,tx}/extendSearch.js`、`extendDetail.js`、`tx/singer.js`，网页 `public/music/app.js` 的 handleSearchTypeChange、toggleArtistFavorite、toggleAlbumFavorite。
+
+- `GET /api/music/search?name=...&source=wy|tx&type=singer|album&page=1&limit=20`：对象 list/total/pageSize。只有 wy/tx 注入 extendSearch/extendDetail；网页同样限制。解析源 supportedSources 只表示账号音频解析平台，客户端与上述能力取交集；状态未知保留两平台并提示，不增加虚构能力接口。歌手/专辑采用单平台，不发送 source=all。
+- 搜索条目 id/name/picUrl/source；歌手 alias/albumSize（QQ 还有 musicSize）；专辑 artistName/artistId/size/publishTime。网易搜索时间为毫秒时间戳，QQ 为字符串；缺失不填造。保留后续页面缺省/0 时的首屏 total；沿用原生 20 条和 PageWindow，已知总数可直接请求目标窗口，空/重复页不跳空页，不把 total 当全部可取得的保证。
+- `GET /api/music/artistDetail?id&source` 返回 name/avatar/desc/musicSize/albumSize。`artistSongs?id&source&order=hot|time` 返回数组；服务端按每页 100、默认最多 20 页（配置上限 100 页）聚合，手机仅显示已加载数量，详情数量不等于加载队列大小。信息和歌曲请求可独立失败。
+- `GET /api/music/artistAlbums?id&source&page`：list/total，条目 id/name/img/singer/publishTime/total。服务端默认每批 50；按平台和 ID 去重，空/重复页停止。
+- `GET /api/music/albumSongs?id&source`：list/total/name/artistName/artistId/desc/img/picUrl/publishTime。网易 502 分支被上游映射为空列表；客户端不能据此断言平台一定没有歌曲。歌手跳转要求可靠 ID，QQ 纯数字 artistId 可能是 singerid 兜底，不能当 MID 调用，保持不可点击。
+- `GET/POST /api/user/library/artists|albums`：GET 数组，POST **原始 JSON 数组整表覆盖**，成功 `{success:true}`。收藏主键为 source + String(id)。新增歌手保存 id/source/name/picUrl；专辑另存 artistName、interval='00:00'、meta.albumId/picUrl/albumName，与网页一致；有已知发行日期时手机额外保留 publishTime（原始数字/字符串）。固定基线 POST 分支 JSON.parse 后直接写入整个数组，GET 在按需补图后返回原数组，不裁剪该字段；此为客户端可选元数据，非网页保证存在的字段。旧收藏没有日期时不推测或批量补查。保存前重读，保留无关对象/未知字段，已存在不重写，取消只删除目标；保存后回读，不自动重发 POST。接口无 CAS 或事务，不能保证跨设备并发不覆盖。服务端可能移除相同对象的不喜欢记录；本轮客户端不提供不喜欢功能。
+
+证据等级：上述为固定源码及 `entity_search_test` 的 Mock/Flutter 组件验证，真实部署 commit 未确认，歌手/专辑接口及写入未实测，不扩大兼容范围。真实验收需检查两平台检索/详情、收藏及取消跨页面和跨设备可见性、热门/最新、专辑跳转、实际播放与确认下载。
+
 ## 歌曲评论（v2.2.0）
 
 源码：`src/server/server.ts` 的 `/api/music/comment` 分支；`src/modules/utils/musicSdk/{kw,kg,tx,wy,mg}/comment.js` 的返回归一化。

@@ -5,9 +5,56 @@ import 'package:lxserver_mobile/app/controller.dart';
 import 'package:lxserver_mobile/core/lx_api.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:lxserver_mobile/features/library/library_screen.dart';
+import 'package:lxserver_mobile/features/search/entity_widgets.dart';
+import 'package:lxserver_mobile/features/search/album_card.dart';
 
 void main() {
   for (final scale in [1.0, 1.6]) {
+    testWidgets(
+      'Favorite album uses shared cards and switching preserves filter positions at scale $scale',
+      (tester) async {
+        final c = AppController();
+        c.library.artists = [
+          {'id': 'a', 'source': 'tx', 'name': '收藏歌手'},
+        ];
+        c.library.albums = [
+          {
+            'id': 'b',
+            'source': 'tx',
+            'name': 'Fixture Album',
+            'artistName': '收藏歌手',
+            'publishTime': '2020-01-02',
+          },
+        ];
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MediaQuery(
+              data: MediaQueryData(textScaler: TextScaler.linear(scale)),
+              child: Scaffold(body: LibraryScreen(controller: c)),
+            ),
+          ),
+        );
+        await tester.tap(find.widgetWithText(ChoiceChip, '歌手'));
+        await tester.pumpAndSettle();
+        final badge = tester.getRect(find.byType(EntityBadge));
+        final filter = tester.getRect(find.byType(ChoiceChip).first);
+        for (var i = 0; i < 3; i++) {
+          await tester.tap(find.widgetWithText(ChoiceChip, '专辑'));
+          await tester.pumpAndSettle();
+          expect(find.byType(AlbumCard), findsOneWidget);
+          expect(find.text('2020-01-02'), findsOneWidget);
+          expect(find.byType(ListTile), findsNothing);
+          expect(tester.getRect(find.byType(ChoiceChip).first), filter);
+          await tester.tap(find.widgetWithText(ChoiceChip, '歌手'));
+          await tester.pumpAndSettle();
+          expect(tester.getRect(find.byType(EntityBadge)), badge);
+        }
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+        c.dispose();
+      },
+    );
     testWidgets('Fresh tab categories align at text scale $scale', (
       tester,
     ) async {

@@ -60,6 +60,14 @@ PlayerController 负责音质切换、旧音频恢复与偏好持久化回调；
 
 ## 验证重点
 
+`AlbumCard` 负责专辑卡片展示及加载反馈，搜索和歌手专辑页经 EntityGrid 复用；SongArt 可显式设置圆角为 0，由卡片统一裁剪。AppController.playAlbum 调用 LibraryController.entitySongs 取得专辑曲目，校验会话、请求版本和当前曲目后交给唯一 PlayerController。卡片播放/收藏是独立按钮，不触发详情导航，也不增加音频实例。
+
+`PlayAllControl` 为歌单与歌手/专辑详情共用的紧凑播放按钮、标题及数量组件，不持有播放状态。歌手详情保留内容标签吸附，下方独立播放栏同样吸附；收藏统一放在详情导航栏最右侧。专辑标签只显示专辑列表，不渲染播放栏。
+
+歌手/专辑详情的多选状态由路由维护，按歌曲 ID 跨页保留；复用 PlaylistEditGlyph、CollectionEditActions、pickCollection、LibraryController.editSongs 及 LocalMediaController.enqueue。全选仅作用于实际载入歌曲，底部仅提供下一首播放/收藏/下载，不渲染原平台删除操作；下载先快照选中歌曲再选档确认。数量标签先专辑后歌曲，避免晚到的歌曲数量挤动首项。
+
+歌手/专辑由 `MusicEntity` 统一解析搜索、收藏与详情字段；`EntitySearchController` 管理类型、平台、分页窗口及过期响应，`EntityDetailController` 管理每个详情路由的歌曲/信息与独立专辑分页。AppController 组合账号可用平台和静态功能支持范围，不将 supportedSources 当作完整能力表。页面只调用控制器；收藏由 LibraryController 共用写入锁，保存前重读整表、保留其他对象及字段，按平台/ID 去重并回读确认。详情复用 SongTile、PlayerController、MiniPlayer 和 LocalMediaController，不创建播放器或自行请求接口。数量/简介缺失不伪造，歌曲分页只派生视图不改变队列。
+
 接口解析与错误转换、队列行为、歌词解析、同步幂等性适合自动化测试。
 后台音频、系统控制和平台权限需要真机验证。
 

@@ -109,8 +109,78 @@ class LibraryController extends ChangeNotifier {
   String? albumError;
   int _version = 0;
   int _mutationVersion = 0;
+  bool _entityMutating = false;
+  bool isEntityFavorite(Map<String, dynamic> entity, bool artist) =>
+      (artist ? artists : albums).any(
+        (v) =>
+            '${v['id']}' == '${entity['id']}' &&
+            v['source'] == entity['source'],
+      );
+
+  Future<void> setEntityFavorite(
+    Session session,
+    Map<String, dynamic> entity,
+    bool artist,
+    bool desired,
+  ) async {
+    if (mutating) throw const ApiFailure('收藏正在保存，请稍后重试');
+    final mutation = ++_mutationVersion;
+    ++_version; // Invalidate any older library refresh before replacing a list.
+    loading = false;
+    mutating = true;
+    _entityMutating = true;
+    notifyListeners();
+    final path = artist
+        ? '/api/user/library/artists'
+        : '/api/user/library/albums';
+    bool matches(Map<String, dynamic> v) =>
+        '${v['id']}' == '${entity['id']}' && v['source'] == entity['source'];
+    try {
+      final snapshot = await api.read(session, path);
+      if (snapshot is! List ||
+          snapshot.any((item) => item is! Map<String, dynamic>)) {
+        throw const ApiFailure('收藏列表格式不兼容，未覆盖服务端数据');
+      }
+      final fresh = _entities(snapshot);
+      if (mutation != _mutationVersion) return;
+      final exists = fresh.any(matches);
+      final next = desired
+          ? [...fresh, if (!exists) entity]
+          : fresh.where((v) => !matches(v)).toList();
+      if (exists != desired) {
+        final result = await api.writeEntities(session, artist, next);
+        if (mutation != _mutationVersion) return;
+        if (result is! Map || result['success'] != true) {
+          throw const ApiFailure('服务端未确认收藏保存，请刷新核对');
+        }
+      }
+      final confirmed = _entities(await api.read(session, path));
+      if (mutation != _mutationVersion) return;
+      if (artist) {
+        artists = confirmed;
+        artistError = null;
+      } else {
+        albums = confirmed;
+        albumError = null;
+      }
+      if (confirmed.any(matches) != desired) {
+        throw const ApiFailure('收藏回读状态不一致，请刷新核对');
+      }
+    } on ApiFailure catch (e) {
+      if (mutation == _mutationVersion && e.unauthorized) onUnauthorized();
+      rethrow;
+    } finally {
+      if (mutation == _mutationVersion) {
+        mutating = false;
+        _entityMutating = false;
+        if (!_disposed) notifyListeners();
+      }
+    }
+  }
+
   bool _disposed = false;
   Future<void> load(Session session) async {
+    if (_entityMutating) return;
     final version = ++_version;
     loading = true;
     error = null;
@@ -544,6 +614,7 @@ class LibraryController extends ChangeNotifier {
     ++_version;
     ++_mutationVersion;
     mutating = false;
+    _entityMutating = false;
     collections = [];
     _sidebarOrder = [];
     artists = [];

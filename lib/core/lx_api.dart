@@ -199,7 +199,7 @@ class LxApi {
     String method = 'GET',
     Session? session,
     Map<String, String>? query,
-    Map<String, dynamic>? body,
+    Object? body,
     Duration timeout = const Duration(seconds: 40),
   }) async {
     final uri = server.replace(
@@ -302,6 +302,18 @@ class LxApi {
         method: 'POST',
         body: data,
       );
+
+  Future<Object> writeEntities(
+    Session session,
+    bool artist,
+    List<Map<String, dynamic>> entities,
+  ) => _requestJson(
+    session.server,
+    artist ? '/api/user/library/artists' : '/api/user/library/albums',
+    session: session,
+    method: 'POST',
+    body: entities,
+  );
 
   Future<Object> read(
     Session s,
