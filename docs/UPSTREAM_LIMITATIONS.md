@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | U001 | 仅通过网易原歌单详情稳定取得创建时间 | `wy/songList.js` 的列表 filterList 会将平台 createTime 转为 time，但 getListDetail 的 info 不导出日期。实际部署只读响应同样缺少 time/createTime。客户端可按同平台、同原 ID 复用已加载列表摘要；没有列表缓存时保持缺省，不伪造日期。这不是原平台没有创建日期，也不是所有入口都无法显示。 |
 | U002 | 查询自建歌单的标准创建时间、追溯早期创建日期 | `src/types/list.d.ts` 的 UserListInfo 与 `listDataManage.createUserList` 未定义/生成 createTime。当前私人记录无 createTime/createdAt/create_time/time，locationUpdateTime 为 null；后者不能冒充创建时间。客户端不使用当前时间、收藏时间或随机 ID 推算历史日期。快照能保留自定义字段不代表标准接口承诺提供它。 |
-| U003 | 跨设备原子修改歌单、避免 GET 与 POST 间的写入冲突 | `/api/user/list` POST 是整份 restore，没有 revision/CAS/If-Match。客户端先读最新快照、保留其他列表与未知字段；排序校验编辑前顺序，旧读请求不能回滚新操作，显式删除需确认且不自动重试写入。这些措施仍不能消除 GET/POST 间另一设备写入的竞态。 |
+| U003 | 跨设备原子修改歌单、避免 GET 与 POST 间的写入冲突 | `/api/user/list` POST 是整份 restore，没有 revision/CAS/If-Match。客户端先读最新快照、保留其他列表与未知字段；排序校验编辑前顺序，旧读请求不能回滚新操作，显式删除需确认且不自动重试写入。这些措施仍不能消除 GET/POST 间另一设备写入的竞态。歌单数组与账号 favoriteSidebarOrder 分属两个整件替换接口，混排双写也无事务；客户端明确提示部分保存。 |
 | U004 | 修改网易/QQ 等原平台的公共歌单内容 | 已核对的 LXServer songList 接口只读取原平台列表/详情，没有原平台账号授权的歌曲删除/排序接口。可编辑的是 LXServer 用户自己的系统列表和个人歌单副本。外部原歌单只能选择、下一首播放、收藏到私人歌单或下载；删除与拖动排序在“我的歌单”副本中进行。 |
 
 ## 可以使用现有接口实现的部分
