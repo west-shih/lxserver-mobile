@@ -355,20 +355,55 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                               fontSize: 14,
                             ),
                           ),
-                          subtitle: Text(
-                            [
-                              if (d.aggregate) playlist.source.label,
-                              playlist.author,
-                              if (playlist.count.isNotEmpty)
-                                '${playlist.count} 次播放',
-                            ].where((value) => value.isNotEmpty).join(' · '),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: lxMuted,
-                              fontSize: 11,
-                            ),
-                          ),
+                          subtitle: playlist.metadata.date.isEmpty
+                              ? Text(
+                                  [
+                                        if (d.aggregate) playlist.source.label,
+                                        playlist.author,
+                                        if (playlist.count.isNotEmpty)
+                                          '${playlist.count} 次播放',
+                                      ]
+                                      .where((value) => value.isNotEmpty)
+                                      .join(' · '),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: lxMuted,
+                                    fontSize: 11,
+                                  ),
+                                )
+                              : Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      [
+                                            if (d.aggregate)
+                                              playlist.source.label,
+                                            playlist.author,
+                                            if (playlist.count.isNotEmpty)
+                                              '${playlist.count} 次播放',
+                                          ]
+                                          .where((value) => value.isNotEmpty)
+                                          .join(' · '),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: lxMuted,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                    Text(
+                                      playlist.metadata.date,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: lxMuted,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                           onTap: () {
                             final session = c.session;
                             if (session == null) return;

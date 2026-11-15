@@ -1,0 +1,176 @@
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:lxserver_mobile/app/controller.dart';
+import 'package:lxserver_mobile/core/lx_api.dart';
+import 'package:lxserver_mobile/features/discovery/discovery_controller.dart';
+import 'package:lxserver_mobile/features/discovery/discovery_screen.dart';
+import 'package:lxserver_mobile/shared/song_actions.dart';
+
+final session = Session(
+  Uri.parse('https://example.test'),
+  'fixture',
+  'fixture-token',
+);
+http.Response response(Object data) =>
+    http.Response.bytes(utf8.encode(jsonEncode(data)), 200);
+final track = Song({
+  'songmid': 'one',
+  'source': 'wy',
+  'name': 'Fixture song',
+}, MusicSource.wy);
+
+void main() {
+  setUp(() => FlutterSecureStorage.setMockInitialValues({}));
+
+  testWidgets(
+    'Song menu comments read the selected song without starting playback',
+    (tester) async {
+      Map? requested;
+      final c = AppController(
+        api: LxApi(
+          client: MockClient((r) async {
+            if (r.url.path == '/api/music/comment') {
+              requested = jsonDecode(r.body) as Map;
+              return response({'comments': [], 'total': 0});
+            }
+            return response([]);
+          }),
+        ),
+      )..session = session;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showSongActions(context, c, track),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(find.text('收藏到歌单'), findsOneWidget);
+      await tester.tap(find.text('评论'));
+      await tester.pumpAndSettle();
+      expect(find.text('歌曲评论'), findsOneWidget);
+      expect((requested!['songInfo'] as Map)['songmid'], 'one');
+      expect(c.player.current, isNull);
+      await tester.pumpWidget(const SizedBox());
+      c.dispose();
+    },
+  );
+
+  testWidgets(
+    'Collection picker excludes default, cancel writes nothing, repeat collection deduplicates',
+    (tester) async {
+      var data = <String, dynamic>{
+        'loveList': [],
+        'defaultList': [
+          {'songmid': 'preserved', 'source': 'wy'},
+        ],
+        'userList': [
+          {'id': 'custom', 'name': 'Fixture list', 'list': [], 'extra': 42},
+        ],
+        'extra': true,
+      };
+      var writes = 0;
+      final c = AppController(
+        api: LxApi(
+          client: MockClient((r) async {
+            if (r.method == 'POST') {
+              writes++;
+              data = Map<String, dynamic>.from(jsonDecode(r.body) as Map);
+              return response({'success': true});
+            }
+            return response(r.url.path == '/api/user/list' ? data : []);
+          }),
+        ),
+      )..session = session;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showSongActions(context, c, track),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      Future<void> openPicker() async {
+        await tester.tap(find.text('open'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('收藏到歌单'));
+        await tester.pumpAndSettle();
+      }
+
+      await openPicker();
+      expect(find.text('默认列表'), findsNothing);
+      expect(find.text('我的喜欢'), findsOneWidget);
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
+      expect(writes, 0);
+      for (var i = 0; i < 2; i++) {
+        await openPicker();
+        await tester.tap(find.text('Fixture list'));
+        await tester.pumpAndSettle();
+      }
+      expect(((data['userList'] as List).single['list'] as List).length, 1);
+      expect((data['defaultList'] as List).single['songmid'], 'preserved');
+      expect((data['userList'] as List).single['extra'], 42);
+      expect(data['extra'], true);
+      expect(c.player.current, isNull);
+      await tester.pumpWidget(const SizedBox());
+      c.dispose();
+    },
+  );
+
+  testWidgets(
+    'Playlist date has its own final line; undated cards retain their single metadata line',
+    (tester) async {
+      final c = AppController(
+        api: LxApi(client: MockClient((r) async => response([]))),
+      )..session = session;
+      c.discovery.playlists = [
+        PlaylistSummary({
+          'id': 'dated',
+          'name': 'Dated',
+          'author': 'Creator',
+          'play_count': '10',
+          'time': '2026-01-02',
+        }, MusicSource.wy),
+        PlaylistSummary({
+          'id': 'undated',
+          'name': 'Undated',
+          'author': 'Another',
+          'play_count': '20',
+        }, MusicSource.wy),
+      ];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: DiscoveryScreen(controller: c)),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Creator · 10 次播放'), findsOneWidget);
+      expect(find.text('2026-01-02'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('2026-01-02')).dy,
+        greaterThan(tester.getTopLeft(find.text('Creator · 10 次播放')).dy),
+      );
+      expect(find.text('Another · 20 次播放'), findsOneWidget);
+      expect(find.textContaining('null'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      c.dispose();
+    },
+  );
+}

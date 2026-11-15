@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../shared/app_modal.dart';
+import '../../shared/collection_picker.dart';
 
 import 'package:flutter/foundation.dart';
 
@@ -391,54 +392,7 @@ class _CollectionScreenState extends State<CollectionScreen> {
     final session = c.session;
     final songs = _selectedSongs;
     if (session == null || songs.isEmpty || _saving) return;
-    if (c.library.collections.isEmpty) await c.library.load(session);
-    if (!mounted || c.session != session) return;
-    if (c.library.collections.isEmpty) {
-      _editFailure(const ApiFailure('无法读取目标歌单，请刷新后重试'));
-      return;
-    }
-    final target = await showAppSheet<MusicCollection>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (sheet) => SafeArea(
-        child: SizedBox(
-          height: (80 + c.library.collections.length * 64.0).clamp(
-            200.0,
-            MediaQuery.sizeOf(sheet).height * .6,
-          ),
-          child: Column(
-            children: [
-              SheetHeader(
-                title: '收藏到歌单',
-                subtitle: '已选 ${songs.length} 首，重复歌曲不会重复添加',
-              ),
-              Expanded(
-                child: ListView(
-                  children: [
-                    for (final collection in c.library.collections)
-                      ListTile(
-                        leading: Icon(
-                          collection.id == 'love'
-                              ? Icons.favorite_outline_rounded
-                              : Icons.queue_music_rounded,
-                        ),
-                        title: Text(
-                          collection.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: Text('${collection.songs.length} 首'),
-                        onTap: () => Navigator.pop(sheet, collection),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    final target = await pickCollection(context, c, songCount: songs.length);
     if (target == null || !mounted || c.session != session) return;
     setState(() => _saving = true);
     try {

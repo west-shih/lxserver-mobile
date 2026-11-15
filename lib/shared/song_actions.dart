@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
 import 'app_modal.dart';
+import 'collection_picker.dart';
 
 import '../app/controller.dart';
 import '../core/lx_api.dart';
 import '../features/player/quality_sheet.dart';
+import '../features/player/comments_sheet.dart';
 import 'song_art.dart';
 import '../features/local_media/local_media_screens.dart';
 
@@ -59,6 +61,58 @@ void showSongActions(
                 messenger.showSnackBar(
                   const SnackBar(content: Text('已加入播放队列')),
                 );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.playlist_add_check_rounded),
+              title: const Text('收藏到歌单'),
+              onTap: () async {
+                Navigator.pop(context);
+                final session = controller.session;
+                if (session == null) return;
+                final target = await pickCollection(
+                  origin,
+                  controller,
+                  songCount: 1,
+                );
+                if (target == null ||
+                    !origin.mounted ||
+                    controller.session != session) {
+                  return;
+                }
+                try {
+                  await controller.library.editSongs(
+                    session,
+                    target,
+                    addSongs: [song],
+                  );
+                  if (!origin.mounted || controller.session != session) return;
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        controller.library.error ?? '已收藏到「${target.name}」',
+                      ),
+                    ),
+                  );
+                } on ApiFailure catch (e) {
+                  if (origin.mounted && controller.session == session) {
+                    messenger.showSnackBar(SnackBar(content: Text(e.message)));
+                  }
+                } catch (_) {
+                  if (origin.mounted && controller.session == session) {
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text('收藏失败，请刷新后重试')),
+                    );
+                  }
+                }
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.chat_bubble_outline_rounded),
+              title: const Text('评论'),
+              onTap: () {
+                Navigator.pop(context);
+                showComments(origin, controller, song);
               },
             ),
             ListTile(
