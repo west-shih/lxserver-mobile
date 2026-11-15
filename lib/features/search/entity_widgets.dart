@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../app/controller.dart';
-import '../../app/theme.dart';
 import '../../core/lx_api.dart';
 import '../../shared/music_badge.dart';
-import '../../shared/song_art.dart';
 import 'music_entity.dart';
 import 'entity_detail_screen.dart';
 import 'album_card.dart';
+import 'artist_card.dart';
 
 void openEntity(BuildContext context, AppController c, MusicEntity entity) {
   Navigator.push(
@@ -73,8 +72,8 @@ class EntityGrid extends StatelessWidget {
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
             mainAxisExtent: albumGrid
-                ? width + 28 + 57 * scale + (hasDates ? 20 * scale : 0)
-                : 135 + 115 * scale,
+                ? width + 24 + 57 * scale + (hasDates ? 16 * scale : 0)
+                : ArtistCard.extent(width, scale),
           ),
           itemCount: items.length,
           itemBuilder: (context, index) {
@@ -82,108 +81,7 @@ class EntityGrid extends StatelessWidget {
             if (!entity.artist) {
               return AlbumCard(controller: controller, entity: entity);
             }
-            final saved = controller.library.isEntityFavorite(
-              entity.favorite,
-              entity.artist,
-            );
-            return Material(
-              color: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(17),
-                side: const BorderSide(color: Color(0xffe5ece7)),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: () => openEntity(context, controller, entity),
-                child: Stack(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: entity.artist
-                            ? CrossAxisAlignment.center
-                            : CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Center(
-                              child: entity.artist
-                                  ? ClipOval(
-                                      child: SongArt(
-                                        url: entity.image,
-                                        size: 96,
-                                      ),
-                                    )
-                                  : SongArt(url: entity.image, size: 138),
-                            ),
-                          ),
-                          const SizedBox(height: 9),
-                          Text(
-                            entity.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          if ((entity.artist ? entity.alias : entity.singer)
-                              .isNotEmpty)
-                            Text(
-                              entity.artist ? entity.alias : entity.singer,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: lxMuted,
-                              ),
-                            ),
-                          const SizedBox(height: 7),
-                          Wrap(
-                            spacing: 5,
-                            runSpacing: 4,
-                            children: [
-                              EntityBadge(source: entity.source),
-                              if (entity.artist &&
-                                  entity.number('albumSize') != null)
-                                Text(
-                                  '${entity.number('albumSize')} 专辑',
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    color: lxMuted,
-                                  ),
-                                ),
-                            ],
-                          ),
-                          if (!entity.artist && entity.date.isNotEmpty)
-                            Text(
-                              entity.date,
-                              maxLines: 1,
-                              style: const TextStyle(
-                                fontSize: 10,
-                                color: lxMuted,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    Positioned(
-                      top: 0,
-                      right: 0,
-                      child: IconButton(
-                        tooltip: saved ? '取消收藏' : '收藏',
-                        onPressed: controller.library.mutating
-                            ? null
-                            : () => toggleEntity(context, controller, entity),
-                        icon: Icon(
-                          saved
-                              ? Icons.favorite_rounded
-                              : Icons.favorite_border_rounded,
-                          color: saved ? const Color(0xffed5277) : lxMuted,
-                          size: 21,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
+            return ArtistCard(controller: controller, entity: entity);
           },
         ),
       );

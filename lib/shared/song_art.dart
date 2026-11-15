@@ -23,8 +23,13 @@ class SongArt extends StatelessWidget {
     this.size = 52,
     this.localPath,
     this.borderRadius,
+    this.placeholderIcon = Icons.music_note_rounded,
+    this.placeholderColor,
+    this.placeholderBackground,
   });
   final double? borderRadius;
+  final IconData placeholderIcon;
+  final Color? placeholderColor, placeholderBackground;
   final String? localPath;
   final String url;
   final double size;
@@ -34,37 +39,52 @@ class SongArt extends StatelessWidget {
     final placeholder = Container(
       width: size,
       height: size,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFFDDF5E9), Color(0xFFC0E6D7)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+      decoration: BoxDecoration(
+        color: placeholderBackground,
+        gradient: placeholderBackground != null
+            ? null
+            : const LinearGradient(
+                colors: [Color(0xFFDDF5E9), Color(0xFFC0E6D7)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
       ),
-      child: Icon(Icons.music_note_rounded, color: lxGreen, size: size * .4),
+      child: Icon(
+        placeholderIcon,
+        color: placeholderColor ?? lxGreen,
+        size: size * .4,
+      ),
     );
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius ?? size * .2),
       child: localPath != null
           ? Image(
-              image: ResizeImage.resizeIfNeeded(
-                pixels,
-                pixels,
+              image: ResizeImage(
                 FileImage(File(localPath!)),
+                width: pixels,
+                height: pixels,
+                policy: ResizeImagePolicy.fit,
               ),
               width: size,
               height: size,
               fit: BoxFit.cover,
-              errorBuilder: (_, _, _) =>
-                  SongArt(url: url, size: size, borderRadius: borderRadius),
+              errorBuilder: (_, _, _) => SongArt(
+                url: url,
+                size: size,
+                borderRadius: borderRadius,
+                placeholderIcon: placeholderIcon,
+                placeholderColor: placeholderColor,
+                placeholderBackground: placeholderBackground,
+              ),
             )
           : url.isEmpty
           ? placeholder
           : Image(
-              image: ResizeImage.resizeIfNeeded(
-                pixels,
-                pixels,
+              image: ResizeImage(
                 ArtworkImage(url, headers: artworkHeaders(url)),
+                width: pixels,
+                height: pixels,
+                policy: ResizeImagePolicy.fit,
               ),
               width: size,
               height: size,

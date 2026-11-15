@@ -60,7 +60,7 @@ PlayerController 负责音质切换、旧音频恢复与偏好持久化回调；
 
 ## 验证重点
 
-`AlbumCard` 负责专辑卡片展示及加载反馈，搜索和歌手专辑页经 EntityGrid 复用；SongArt 可显式设置圆角为 0，由卡片统一裁剪。AppController.playAlbum 调用 LibraryController.entitySongs 取得专辑曲目，校验会话、请求版本和当前曲目后交给唯一 PlayerController。卡片播放/收藏是独立按钮，不触发详情导航，也不增加音频实例。
+`AlbumCard` 和 `ArtistCard` 为 EntityGrid 的两种展示组件，按列宽及文字缩放计算卡片高度。歌手卡片使用大圆头像、细环与渐变，别名位于主名下；专辑卡片仅外轮廓圆角、歌手居左/平台居右，无快捷播放和下载。收藏按钮独立，不触发详情导航。SongArt 使用 ResizeImagePolicy.fit 保持原图宽高比，之后通过 BoxFit.cover 裁切；网络与本机图片采用相同策略。人物缺图用灰底白色人物占位，不改变普通歌曲封面的默认样式。
 
 `PlayAllControl` 为歌单与歌手/专辑详情共用的紧凑播放按钮、标题及数量组件，不持有播放状态。歌手详情保留内容标签吸附，下方独立播放栏同样吸附；收藏统一放在详情导航栏最右侧。专辑标签只显示专辑列表，不渲染播放栏。
 

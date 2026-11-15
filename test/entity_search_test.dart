@@ -16,6 +16,8 @@ import 'package:lxserver_mobile/features/search/music_entity.dart';
 import 'package:lxserver_mobile/features/search/source_availability.dart';
 import 'package:lxserver_mobile/features/search/album_card.dart';
 import 'package:lxserver_mobile/shared/song_art.dart';
+import 'package:lxserver_mobile/features/search/artist_card.dart';
+import 'package:lxserver_mobile/features/search/entity_widgets.dart';
 
 final session = Session(
   Uri.parse('https://example.test'),
@@ -28,6 +30,77 @@ MusicEntity entity({bool artist = true}) =>
     MusicEntity({'id': 'mid', 'name': '测试歌手'}, MusicSource.tx, artist);
 
 void main() {
+  test('artist aliases remove duplicate display names and survive native favorite metadata', () {
+    const e = MusicEntity(
+      {
+        'id': 'a',
+        'name': 'Jason Chen',
+        'alias': ['陈以桐', 'Jason Chen', '陈以桐', ''],
+      },
+      MusicSource.wy,
+      true,
+    );
+    expect(e.alias, '陈以桐');
+    expect(e.favorite['alias'], contains('陈以桐'));
+    expect(e.merge({'musicSize': 9}).alias, '陈以桐');
+  });
+
+  for (final scale in [1.0, 1.6]) {
+    testWidgets(
+      'artist cards show portrait ring, alias, masked favorite and compact metadata at scale $scale',
+      (tester) async {
+        tester.view.physicalSize = const Size(360, 820);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final c = AppController();
+        const entity = MusicEntity(
+          {
+            'id': 'a',
+            'name': 'Jason Chen',
+            'alias': ['陈以桐'],
+            'albumSize': 166,
+          },
+          MusicSource.wy,
+          true,
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MediaQuery(
+              data: MediaQueryData(textScaler: TextScaler.linear(scale)),
+              child: Scaffold(
+                body: CustomScrollView(
+                  slivers: [
+                    EntityGrid(controller: c, items: const [entity]),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(ArtistCard), findsOneWidget);
+        expect(find.text('陈以桐'), findsOneWidget);
+        expect(find.text('166 专辑'), findsOneWidget);
+        final aliasGap =
+            tester.getTopLeft(find.text('陈以桐')).dy -
+            tester.getBottomLeft(find.text('Jason Chen')).dy;
+        expect(aliasGap, lessThanOrEqualTo(7 * scale));
+        expect(find.byTooltip('收藏歌手：Jason Chen'), findsOneWidget);
+        expect(
+          tester.getCenter(find.text('Jason Chen')).dy,
+          lessThan(tester.getCenter(find.text('陈以桐')).dy),
+        );
+        expect(
+          tester.getCenter(find.text('陈以桐')).dy,
+          lessThan(tester.getCenter(find.text('166 专辑')).dy),
+        );
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+        c.dispose();
+      },
+    );
+  }
   testWidgets(
     'album card has a small corner favorite, no playback, and metadata anchored at the bottom',
     (tester) async {
@@ -115,14 +188,21 @@ void main() {
     );
     await tester.pump();
     final before = tester.getTopLeft(find.text('测试歌手'));
+    final tabsBefore = tester.getTopLeft(find.text('歌曲'));
     final favorite = tester.getCenter(
       find.byKey(const ValueKey('entity-favorite')),
     );
     info.complete(
-      response({'name': '测试歌手', 'albumSize': 43, 'musicSize': 1013}),
+      response({
+        'name': '测试歌手',
+        'albumSize': 43,
+        'musicSize': 1013,
+        'alias': ['次要别名'],
+      }),
     );
     await tester.pumpAndSettle();
     expect(tester.getTopLeft(find.text('测试歌手')), before);
+    expect(tester.getTopLeft(find.text('歌曲')), tabsBefore);
     expect(
       tester.getCenter(find.byKey(const ValueKey('entity-favorite'))),
       favorite,
@@ -607,7 +687,7 @@ void main() {
   );
 
   testWidgets(
-    'detail narrow and large text: inline badge, no alias or redundant menu, gray description',
+    'detail narrow and large text: inline badge, secondary alias, no redundant menu, gray description',
     (tester) async {
       tester.view.physicalSize = const Size(360, 820);
       tester.view.devicePixelRatio = 1;
@@ -648,7 +728,11 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('歌手详情'), findsOneWidget);
       expect(find.text('1019 歌曲'), findsOneWidget);
-      expect(find.text('Hidden Alias'), findsNothing);
+      expect(find.text('Hidden Alias'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('Hidden Alias')).dy,
+        greaterThan(tester.getTopLeft(find.text('测试歌手')).dy),
+      );
       expect(find.byTooltip('更多'), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());

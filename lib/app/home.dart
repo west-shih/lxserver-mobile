@@ -192,12 +192,12 @@ class _MusicHomeState extends State<MusicHome> {
                             .toList(),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
+                            horizontal: 10,
+                            vertical: 8,
                           ),
                           decoration: BoxDecoration(
                             color: lxGreen,
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -206,14 +206,17 @@ class _MusicHomeState extends State<MusicHome> {
                                 c.entitySearch.kind.label,
                                 style: const TextStyle(
                                   color: Colors.white,
+                                  fontSize: 13,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
-                              const SizedBox(width: 4),
-                              const Icon(
-                                Icons.expand_more_rounded,
-                                size: 18,
-                                color: Colors.white,
+                              const SizedBox(width: 6),
+                              const SizedBox(
+                                width: 10,
+                                height: 6,
+                                child: CustomPaint(
+                                  painter: _SearchChevronPainter(),
+                                ),
                               ),
                             ],
                           ),
@@ -284,4 +287,27 @@ class _MusicHomeState extends State<MusicHome> {
       ),
     );
   }
+}
+
+class _SearchChevronPainter extends CustomPainter {
+  const _SearchChevronPainter();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawPath(
+      Path()
+        ..moveTo(.8, .8)
+        ..lineTo(size.width / 2, size.height - .8)
+        ..lineTo(size.width - .8, .8),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _SearchChevronPainter oldDelegate) => false;
 }

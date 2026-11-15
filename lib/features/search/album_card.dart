@@ -40,7 +40,7 @@ class AlbumCard extends StatelessWidget {
                         borderRadius: 0,
                       ),
                       Positioned(
-                        top: 2,
+                        top: 3,
                         right: 2,
                         child: IconButton(
                           tooltip: saved
@@ -109,7 +109,7 @@ class AlbumCard extends StatelessWidget {
                         ),
                       ],
                       const Spacer(),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 4),
                       Row(
                         children: [
                           Expanded(

@@ -29,8 +29,14 @@ class MusicEntity {
       (source != MusicSource.tx || !RegExp(r'^\d+$').hasMatch(artistId));
   String get description =>
       '${raw['desc'] ?? ''}'.replaceAll(RegExp(r'<[^>]*>'), '').trim();
-  String get alias =>
-      raw['alias'] is List ? (raw['alias'] as List).join(' / ') : '';
+  String get alias => raw['alias'] is List
+      ? (raw['alias'] as List)
+            .whereType<String>()
+            .map((v) => v.trim())
+            .where((v) => v.isNotEmpty && v != name)
+            .toSet()
+            .join(' / ')
+      : '';
   int? number(String field) => int.tryParse('${raw[field]}');
   String get date {
     final value = raw['publishTime'];
@@ -61,6 +67,7 @@ class MusicEntity {
     'source': source.name,
     'name': name,
     'picUrl': image,
+    if (artist && alias.isNotEmpty) 'alias': raw['alias'],
     if (!artist) ...{
       'artistName': singer,
       if (date.isNotEmpty) 'publishTime': raw['publishTime'],

@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:lxserver_mobile/features/library/library_screen.dart';
 import 'package:lxserver_mobile/features/search/entity_widgets.dart';
 import 'package:lxserver_mobile/features/search/album_card.dart';
+import 'package:lxserver_mobile/features/search/artist_card.dart';
 
 void main() {
   for (final scale in [1.0, 1.6]) {
@@ -37,6 +38,7 @@ void main() {
         );
         await tester.tap(find.widgetWithText(ChoiceChip, '歌手'));
         await tester.pumpAndSettle();
+        expect(find.byType(ArtistCard), findsOneWidget);
         final badge = tester.getRect(find.byType(EntityBadge));
         final filter = tester.getRect(find.byType(ChoiceChip).first);
         for (var i = 0; i < 3; i++) {

@@ -244,7 +244,15 @@ class _EntityDetailScreenState extends State<EntityDetailScreen> {
                 : CrossAxisAlignment.center,
             children: [
               if (e.artist)
-                ClipOval(child: SongArt(url: e.image, size: 80))
+                ClipOval(
+                  child: SongArt(
+                    url: e.image,
+                    size: 80,
+                    placeholderIcon: Icons.person_outline_rounded,
+                    placeholderColor: Colors.white,
+                    placeholderBackground: const Color(0xffe2e6e4),
+                  ),
+                )
               else
                 SongArt(url: e.image, size: 102),
               const SizedBox(width: 12),
@@ -273,7 +281,20 @@ class _EntityDetailScreenState extends State<EntityDetailScreen> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: e.artist && e.alias.isNotEmpty ? 0 : 4),
+                      if (e.artist && e.alias.isNotEmpty) ...[
+                        Text(
+                          e.alias,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            height: 1.2,
+                            color: lxMuted,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                      ],
                       if (e.artist)
                         ConstrainedBox(
                           constraints: const BoxConstraints(minHeight: 20),

@@ -171,14 +171,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
       final collections = _ordered ?? library.collections;
 
       final entities = _tab == 1 ? library.artists : library.albums;
-      final albumCards = <MusicEntity>[];
-      if (_tab == 2) {
+      final entityCards = <MusicEntity>[];
+      if (_tab != 0) {
         for (final entity in entities) {
           final source = MusicSource.values
               .where((s) => s.name == entity['source'])
               .firstOrNull;
           if (source != null) {
-            albumCards.add(MusicEntity(entity, source, false));
+            entityCards.add(MusicEntity(entity, source, _tab == 1));
           }
         }
       }
@@ -245,8 +245,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 itemBuilder: (_, index) =>
                     _collectionTile(collections[index], dragIndex: index),
               )
-            else if (_tab == 2 && albumCards.length == entities.length)
-              EntityGrid(controller: widget.controller, items: albumCards)
+            else if (_tab != 0 && entityCards.length == entities.length)
+              EntityGrid(controller: widget.controller, items: entityCards)
             else
               SliverList.builder(
                 itemCount: count,
