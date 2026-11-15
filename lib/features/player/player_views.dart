@@ -11,8 +11,14 @@ export 'player_controls.dart';
 export 'player_screen.dart';
 
 class MiniPlayer extends StatelessWidget {
-  const MiniPlayer({super.key, required this.player, this.controller});
+  const MiniPlayer({
+    super.key,
+    required this.player,
+    this.controller,
+    this.compact = false,
+  });
   final PlayerController player;
+  final bool compact;
   final AppController? controller;
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -21,7 +27,7 @@ class MiniPlayer extends StatelessWidget {
       final song = player.current;
       if (song == null) return const SizedBox.shrink();
       return Container(
-        margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        margin: EdgeInsets.fromLTRB(16, compact ? 0 : 8, 16, compact ? 0 : 8),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(22),

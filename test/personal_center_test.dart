@@ -39,6 +39,7 @@ void main() {
       expect(find.text('离线模式'), findsOneWidget);
       expect(find.text('fixture'), findsOneWidget);
       FlutterSecureStorage.setMockInitialValues({});
+      await tester.ensureVisible(find.text('首选音质'));
       await tester.tap(find.text('首选音质'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('高品质'));

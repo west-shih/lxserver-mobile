@@ -212,6 +212,44 @@ class PersonalCenterScreen extends StatelessWidget {
               child: Column(
                 children: [
                   ListTile(
+                    key: const ValueKey('collection-browsing-setting'),
+                    leading: const Icon(
+                      Icons.auto_stories_outlined,
+                      color: lxGreen,
+                    ),
+                    title: const Text('歌单浏览'),
+                    trailing: DropdownButton<int>(
+                      value: controller.pagedCollections
+                          ? controller.collectionPageSize
+                          : 0,
+                      underline: const SizedBox.shrink(),
+                      style: const TextStyle(fontSize: 14, color: lxInk),
+                      items: [
+                        const DropdownMenuItem(value: 0, child: Text('连续列表')),
+                        for (final size in AppController.collectionPageSizes)
+                          DropdownMenuItem(
+                            value: size,
+                            child: Text('每页 $size 首'),
+                          ),
+                      ],
+                      onChanged: (value) async {
+                        if (value == null) return;
+                        try {
+                          if (value != 0) {
+                            await controller.setCollectionPageSize(value);
+                          }
+                          await controller.setPagedCollections(value != 0);
+                        } catch (_) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('设置保存失败，请重试')),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                  ),
+                  ListTile(
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 20,
                       vertical: 8,

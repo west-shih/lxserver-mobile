@@ -291,6 +291,8 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                               playlist.name,
                               [],
                               image: playlist.image,
+                              source: playlist.source,
+                              metadata: playlist.metadata,
                             ),
                             fetchPage: (page) =>
                                 d.detail(session, playlist, page),

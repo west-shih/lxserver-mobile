@@ -273,6 +273,15 @@ class LxApi {
     return data;
   }
 
+  Future<Object> writeList(Session s, Map<String, dynamic> data) =>
+      _requestJson(
+        s.server,
+        '/api/user/list',
+        session: s,
+        method: 'POST',
+        body: data,
+      );
+
   Future<Object> read(
     Session s,
     String path, {

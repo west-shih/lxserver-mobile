@@ -5,6 +5,13 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'lx_api.dart';
 
 class SessionStore {
+  Future<String?> readCollectionPageSize() =>
+      _storage.read(key: 'lx.collectionPageSize');
+  Future<void> saveCollectionPageSize(int value) =>
+      _storage.write(key: 'lx.collectionPageSize', value: '$value');
+  Future<String?> readListMode() => _storage.read(key: 'lx.listMode');
+  Future<void> saveListMode(bool value) =>
+      _storage.write(key: 'lx.listMode', value: '$value');
   Future<String?> readMode() => _storage.read(key: 'lx.playbackMode');
   Future<void> saveMode(String value) =>
       _storage.write(key: 'lx.playbackMode', value: value);

@@ -49,13 +49,13 @@
 | 接口 | 客户端处理 |
 | --- | --- |
 | GET /api/custom-source/list?username=当前用户 | 用户 Token；响应为数组。仅统计 enabled=true 且 status=success 的解析源，合并 supportedSources 并逐源排除 disabledSources |
-| GET /api/user/list | 用户 Token/name；读取 loveList、defaultList、userList[].list；不调用全量覆盖写接口 |
+| GET /api/user/list | 用户 Token/name；读取 loveList、defaultList、userList[].list；显式编辑使用下述全量 POST 契约 |
 | GET /api/user/library/artists、/api/user/library/albums | 响应为数组，收藏字段 id/source/name/picUrl，专辑额外 artistName；两者失败不阻断个人歌单 |
 | GET /api/music/artistSongs、/api/music/albumSongs | id/source；歌手返回数组，专辑读取 list；读取收藏条目的歌曲 |
 | GET /api/music/songList/tags | source；读取 tags 分组下 list 与 sortList；分类和排序 ID 来自服务端，不硬编码 |
 | GET /api/music/songList/list | source/tagId/sortId/page；读取 list、total/limit（若有） |
 | GET /api/music/songList/search | source/text/page；在线歌单搜索 |
-| GET /api/music/songList/detail | source/id/page；分页加载 list，跨页去重，遇空页/重复页停止 |
+| GET /api/music/songList/detail | source/id/page；分页加载 list，跨页去重，遇空页/重复页停止；info.img / info.pic 为歌单独立封面 |
 | GET /api/music/cache/list | 用户 Token/name；success=true、data 数组。按 id、quality、folder(cache/music) 建立服务器文件状态，一次加载供所有可见歌曲复用。下载目录同档优先，接口不可用标记未知，不伪造缓存状态 |
 | GET /api/music/lyric | 用户 Token/name；query 携带 source/songmid/name/singer 及可用的 songId/hash/interval/copyrightId/albumId/lrcUrl/mrcUrl/trcUrl；读取 lyric 和可选 tlyric，失败不阻断音频播放 |
 
@@ -70,7 +70,10 @@
 - 个人收藏的歌曲保留 meta，并映射 songId、picUrl、albumName、qualitys 与各平台必需字段。
 - 服务器本地文件条目可见，但当前不能播放，不将 local 错标为酷我。
 - 基础 LRC 支持多时间标签、毫秒、翻译同时间匹配、当前行高亮和点击跳转。逐字歌词、罗马音、时间偏移元信息尚未适配。
-- 收藏和个人歌单目前只读，通过刷新重新获取；尚无实时推送同步与编辑冲突处理。
+- 个人歌单由 `source/sourceListId` 标识关联在线来源（public/music/app.js createItem / handleJumpToOriginalList）；default/love 为不可删除系统列表。手机端跳转到应用内原始在线歌单详情。
+- `POST /api/user/list`：普通用户鉴权，与 GET 相同；请求为完整 ListData（defaultList/loveList/userList），响应 `{success:true}`。证据：src/server/server.ts:2665 → listDataManage.restore → createSnapshot；restore 见 src/modules/list/listDataManage.ts。不是单歌单 PATCH，也没有 CAS/版本前置条件。
+- 重命名、删除与同步均在操作前重读最新快照，仅修改目标自建歌单 name、移除目标自建歌单或替换目标 list 和非空来源封面 Album，保留其他歌单、字段与元数据；同步完整拉取 songList/detail 各页、按平台歌曲 ID 去重，重复不完整页/失败时中止，不提交部分内容。上限 1000 页，超限中止。写成功后重新读取列表，不做自动写入重试。
+- 并发设备在 GET 与 POST 之间的编辑仍可能被覆盖；当前不具备实时推送同步、事务冲突检测。源码基线已核对、Mock 已验证，部署写入行为待真实实例验证。
 
 ## 音质契约
 
@@ -138,3 +141,29 @@
 下载封面使用歌曲标准化 img 元数据，不猜测新的服务端图片接口；请求图片 CDN 时不添加 LXServer 凭据。敏感鉴权图片 URL 不写索引，可仅保存获取到的本机图片。旧记录只按同平台、同歌曲 ID 从已验证歌单/搜索结果补齐。
 
 播放状态恢复不新增服务器接口；只保存本机歌曲元数据和进度，继续时沿用原生解析/缓存流程。参考固定 v2.2.0 app.js 的 savePlaybackState/restorePlaybackState，客户端暂停恢复及队列窗口区别见 PLAYBACK_ENGINE.md。
+
+- 重命名证据：v2.2.0 public/music/app.js:14211 handleRenameList，仅允许 userList 项、名称 trim 后非空、更新 name 后 pushDataChange。手机端列表与详情共用菜单，系统 love/default 不可重命名；保留来源元数据和歌曲。Mock 验证空白输入不写入、改名后详情标题同步更新。
+
+### 关联歌单封面刷新
+
+- 证据：src/server/server.ts 的 songList/detail 分支直接返回 SDK 详情及 info；tx/songList.js 的活动 getListDetail 将 dirinfo.picurl 映射为 info.img，public/music/app.js 收藏逻辑将 info.img/info.pic 存入 Album。客户端 SongBatch 保留来源封面，完整分页成功后与歌曲一起显式写入 Album；缺失或空白来源封面不清空已有 Album，不把歌曲图片当歌单封面。
+- 2026-11-14 Android SM S9180 只读排查：一份 QQ 关联歌单服务端 Album 非空，原歌单详情 info.img 非空，手机请求已有图片返回 200 / image/jpeg；客户端曾保留空 image，重新 GET 私人歌单后恢复并在列表显示。未执行真实 POST，不记录歌单名、ID、图片完整地址或鉴权数据。部署完整 commit 仍未知，结论仅限这组只读接口及图片。
+- CollectionScreen 同时订阅 AppController 和 LibraryController，重读后更新封面/标题，无需退出重进。Mock 覆盖只读重载零写入、详情封面即时更新、刷新封面写入与空白响应保留旧图。
+
+## 歌单元数据与完整收藏（v2.2.0）
+
+- 列表/搜索返回的 author/desc/play_count/time 与详情 info 中同名字段用于显示；详情优先，缺失时保留列表值。证据：五平台 songList.js，QQ 活动详情函数映射 dirinfo.host_nick/desc/listennum 到 info；QQ/酷狗列表中的 time 由各自创建/发布时间格式化，不能泛称更新时间。播放量不是唯一听众人数。私人 userList 的原生收藏创建只保证 name/source/sourceListId/Album/locationUpdateTime/list，不假设存在创作者/简介或日期。
+- 收藏沿用 public/music/app.js 的 _executeCollectSongList 与 formatSongToLxMusicStandard：完整获取全部页，按平台歌曲标识去重；GET 最新 /api/user/list，按 source + sourceListId 查重；新增 `${source}_${128位随机十六进制}` ID，保存上述原生字段，POST 完整快照，success=true 后重读。取消收藏复用确认删除，可能影响其他设备的这份私人歌单，不删除手机已下载音频。
+- librarySong 规范化歌曲 id/meta，QQ 同时保留媒体 mid 与数值 songId，酷狗保留 songId/hash，咪咕保留版权/歌词字段；已有合法 LX 条目保留额外元数据。没有新增服务端接口、管理员鉴权或未经核实的字段写入。
+- playlist_prototype_test 覆盖元数据合并、全分页去重、原生身份、重复收藏零额外 POST、分页失败/会话重置零部分写入、保存重读阶段写入锁、收藏按钮确认与选中态。上述写入为 Mock 契约验证，真实部署收藏/取消及多设备可见性待验收。
+
+### 日期字段与收藏跳转边界
+
+- 固定基线网易 `wy/songList.js` 的 filterList 将平台 item.createTime 格式化为列表 time；getListDetail 的 info 只导出 play_count/name/img/desc/author，没有 createTime/time。2026-11-14 Android 当前网易外部歌单的只读 GET/detail 与该字段集合一致；缓存列表有日期，而收藏跳转初始元数据为空。已在当前页以同平台、同歌单 ID 的缓存回填并确认日历日期显示，不记录实际歌单名称、ID或日期。
+- DiscoveryController.originalSummary 优先使用同 source + sourceListId 的已加载列表摘要，供“打开原始歌单”及刷新使用；未命中时只保留收藏已有字段，不额外发搜索/平台请求，不虚构日期。QQ 等其他源的 time 可能表示修改/发布日，不能统一当创建日。
+- 当前 GET/user/list 的自建记录未返回 createTime/createdAt/create_time/time，locationUpdateTime 为 null。基线 src/types/list.d.ts 的 UserListInfo 及 listDataManage.createUserList 未定义或生成 createTime；locationUpdateTime 不能当创建时间。快照允许保留未知字段，不代表标准接口承诺提供创建日。
+- playlist_prototype_test 覆盖同平台缓存日期回填、跨平台同 ID 隔离、未缓存无日期、从收藏打开缺日期的详情后正确展示列表日期。以上修复不改变服务端协议或歌单数据。
+
+### 私人歌曲编辑（v2.2.0）
+
+基线 `src/server/server.ts` 的 GET/POST `/api/user/list` 与 `listDataManage.ts` 的歌曲移除/位置更新支持私人列表内容修改；系统 love/default 的歌曲同样可以修改，系统列表自身仍不可删除/重命名。LibraryController.editSongs 先取最新完整快照，library_edit 按平台限定歌曲身份变更目标，保留其他列表、既有歌曲原始数据及未知字段。复制仅规范化新条目并查重；排序要求最新目标顺序与开始编辑时一致，拒绝过期草稿。删除和草稿排序一起提交；无变化不 POST，明确 success 后发布状态并只读回查。回查失败提示已保存，不重新 POST；旧读请求不能回滚新结果。服务端无 CAS，GET/POST 间仍可能冲突，见 [版本限制](UPSTREAM_LIMITATIONS.md)。library_edit_test 与 collection_editor_test 为 Mock 验证，未执行真实私人歌曲写入。

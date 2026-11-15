@@ -48,7 +48,7 @@ SongMetadata 共用歌曲平台/最高标注音质/本机文件标签；PlayerCo
 MusicHome 持有顶部搜索框；各列表页以单个 CustomScrollView 组织筛选和内容，筛选不固定占用列表高度。
 SongArt 通过 ArtworkImage 加载封面；独立图片客户端替换默认 User-Agent，不使用登录凭据，避免 Flutter NetworkImage 追加请求头导致 CDN 拒绝。
 SessionStore 仅持久化服务器和 Token 会话，不保存密码。音频 URL 请求不附带用户 Token。
-后台播放服务、本地数据库、写入同步方案尚未选定。歌词使用独立 LRC 解析模型；异步响应与当前曲目绑定，切歌/退出使旧请求失效。
+后台播放服务、本地数据库、实时同步方案尚未选定。个人歌单重命名/删除/关联歌单刷新由 LibraryController 重读快照后调用 LxApi 全量写入，UI 仅确认和发送操作；接口无并发冲突检测。歌词使用独立 LRC 解析模型；异步响应与当前曲目绑定，切歌/退出使旧请求失效。
 后续随功能扩大拆分 AppController，避免把所有业务持续集中其中。
 
 音质策略独立为 QualityPolicy，解析返回 PlaybackResource，区分请求值与服务器标注。
@@ -74,3 +74,11 @@ PlaybackGlyph 为纯绘制组件，统一圆角图形，继承按钮的 IconThem
 LocalArtwork 由 LocalMediaController 管理：独立串行封面任务、大小与类型限制、原子写入、按平台歌曲 ID 复用及孤立文件清理。SongArt 只选择本机或网络图片提供器，不自行下载/管理文件。
 
 PlaybackSnapshot 仅包含可恢复状态；PlaybackResumeStore 管理私有文件、节流与原子串行写入。AppController 监听唯一播放器并安排保存、恢复已验证会话的快照；LxApp 通过生命周期回调补存。恢复不创建 AudioPlayer，只有显式播放才加载资源。core/song_snapshot.dart 统一歌曲最小持久化字段，复用于下载和播放快照。
+
+CollectionMenu 为音乐库与详情共用的歌单操作入口；CollectionScreen 区分私人可编辑歌单与外部在线详情，并订阅 LibraryController 的封面/标题变化。CollectionHeader 只渲染可用元数据；CollectionMetadata 在 data 边界解析 author/desc/play_count/time，DiscoveryController 合并列表与详情字段，经 SongBatch 交付页面；originalSummary 在收藏跳转时按 source/原 ID 复用已加载列表摘要，保留详情接口未返回的日期，不新增搜索请求。私人收藏记录缺少这些字段时不伪造，也不新增未经核对的持久化字段。
+
+LibraryController 在完整分页后聚合歌曲/封面；收藏重读快照查重，再通过 LxApi 保存原生字段。librarySong 对齐上游 formatSongToLxMusicStandard 的 id/meta，同时保留额外字段。显式同步只以非空来源图更新 Album；操作期间保持写入锁，reset/dispose 使旧操作失效。UI 不发送 HTTP。
+
+CollectionScreen 用单个 CustomScrollView 组织可滚动头部、播放工具栏和歌曲；搜索在导航按需展开，PopScope 优先退出搜索/选择。搜索/分页只派生显示条目，不改变已加载播放队列。多选状态归详情页所有，PlayerController.enqueueNext 将选择歌曲去重放在当前歌曲之后且不自动播放；批量下载经 LocalMediaController，页面不管理文件。分页模式及数量由 AppController/SessionStore 保存。ScrollingTitle 只对超宽标题运行动画并遵循系统减少动态效果，保留完整无障碍标签。
+
+私人歌曲编辑通过 LibraryController.editSongs 统一管理写入锁和会话版本；library_edit 是纯快照变换，保留未知字段并检查排序基线。CollectionScreen 只持有选择和排序草稿，调用控制器保存，不直接请求 HTTP。确认删除可合并待保存顺序，成功回查失败不会重发写入。编辑工具栏由 CollectionEditActions 和 PlaylistEditGlyph 提供；原平台歌单没有对应写接口，显示只读边界。

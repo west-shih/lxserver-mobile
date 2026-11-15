@@ -4,6 +4,7 @@ import '../../app/controller.dart';
 import '../../app/theme.dart';
 import '../../shared/song_art.dart';
 import 'collection_screen.dart';
+import 'collection_actions.dart';
 import 'library_controller.dart';
 
 class LibraryScreen extends StatefulWidget {
@@ -26,6 +27,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       builder: (_) => CollectionScreen(
         controller: widget.controller,
         collection: collection,
+        editable: true,
       ),
     ),
   );
@@ -153,11 +155,16 @@ class _LibraryScreenState extends State<LibraryScreen> {
                         '${collection.songs.length} 首',
                         style: const TextStyle(fontSize: 12, color: lxMuted),
                       ),
-                      trailing: const Icon(
-                        Icons.chevron_right_rounded,
-                        size: 20,
-                        color: lxMuted,
-                      ),
+                      trailing: collection.isSystem
+                          ? const Icon(
+                              Icons.chevron_right_rounded,
+                              size: 20,
+                              color: lxMuted,
+                            )
+                          : CollectionMenu(
+                              controller: widget.controller,
+                              collection: collection,
+                            ),
                       onTap: () => _collection(collection),
                     );
                   }

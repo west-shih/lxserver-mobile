@@ -633,9 +633,44 @@ class PlayerController extends ChangeNotifier {
   }
 
   void enqueue(Session session, Song song) {
+    enqueueAll(session, [song]);
+  }
+
+  void enqueueAll(Session session, Iterable<Song> songs) {
     _session = session;
-    if (!_queue.any((s) => s.id == song.id)) _queue.add(song);
+    final ids = _queue.map((s) => s.id).toSet();
+    _queue.addAll(songs.where((s) => ids.add(s.id)));
     notifyListeners();
+  }
+
+  int enqueueNext(Session session, Iterable<Song> songs) {
+    final active = current;
+    final chosen = <String, Song>{};
+    for (final song in songs) {
+      if (song.id != active?.id) chosen.putIfAbsent(song.id, () => song);
+    }
+    if (chosen.isEmpty) return 0;
+    _session = session;
+    _queue.removeWhere((song) => chosen.containsKey(song.id));
+    index = active == null
+        ? -1
+        : _queue.indexWhere((song) => song.id == active.id);
+    _queue.insertAll(index < 0 ? 0 : index + 1, chosen.values);
+    if (active == null) {
+      restorePlayback(
+        session,
+        PlaybackSnapshot(
+          scope: PlaybackSnapshot.scopeFor(session),
+          songs: List.of(_queue),
+          index: 0,
+          position: Duration.zero,
+          duration: Duration.zero,
+        ),
+      );
+    } else {
+      notifyListeners();
+    }
+    return chosen.length;
   }
 
   Future<void> remove(int value) async {

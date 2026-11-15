@@ -41,6 +41,22 @@ class AppController extends ChangeNotifier {
   }
   final LxApi api;
   final store = SessionStore();
+  bool pagedCollections = false;
+  static const collectionPageSizes = [10, 20, 30, 50, 100];
+  int collectionPageSize = 20;
+  Future<void> setCollectionPageSize(int value) async {
+    if (!collectionPageSizes.contains(value)) return;
+    await store.saveCollectionPageSize(value);
+    collectionPageSize = value;
+    notifyListeners();
+  }
+
+  Future<void> setPagedCollections(bool value) async {
+    await store.saveListMode(value);
+    pagedCollections = value;
+    notifyListeners();
+  }
+
   late final PlayerController player;
   late final PlaybackResumeStore playbackResume;
   String? _lastResumeSong;
@@ -136,6 +152,13 @@ class AppController extends ChangeNotifier {
   Future<void> restore() async {
     Session? saved;
     try {
+      pagedCollections = await store.readListMode() == 'true';
+      final savedPageSize = int.tryParse(
+        await store.readCollectionPageSize() ?? '',
+      );
+      collectionPageSize = collectionPageSizes.contains(savedPageSize)
+          ? savedPageSize!
+          : 20;
       server = await store.server() ?? '';
       player.restoreQuality(await store.readQuality());
       player.restoreMode(await store.readMode());

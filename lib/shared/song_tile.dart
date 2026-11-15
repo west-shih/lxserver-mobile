@@ -13,8 +13,16 @@ class SongTile extends StatelessWidget {
     required this.song,
     required this.controller,
     required this.queue,
+    this.selected,
+    this.onSelect,
+    this.reorderHandle,
+    this.selectionEnabled = true,
   });
   final Song song;
+  final bool? selected;
+  final VoidCallback? onSelect;
+  final Widget? reorderHandle;
+  final bool selectionEnabled;
   final AppController controller;
   final List<Song> queue;
   void _play() {
@@ -31,7 +39,21 @@ class SongTile extends StatelessWidget {
     builder: (context, _) => ListTile(
       dense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      leading: SongArt(url: song.image, size: 48),
+      leading: onSelect == null
+          ? SongArt(url: song.image, size: 48)
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Checkbox(
+                  value: selected ?? false,
+                  shape: const CircleBorder(),
+                  visualDensity: VisualDensity.compact,
+                  onChanged: selectionEnabled ? (_) => onSelect!() : null,
+                ),
+                const SizedBox(width: 6),
+                SongArt(url: song.image, size: 44),
+              ],
+            ),
       title: Text(
         song.name,
         maxLines: 1,
@@ -42,13 +64,20 @@ class SongTile extends StatelessWidget {
         padding: const EdgeInsets.only(top: 5),
         child: SongMetadata(controller: controller, song: song),
       ),
-      onTap: _play,
-      trailing: IconButton(
-        tooltip: '${song.name}的更多操作',
-        icon: const Icon(Icons.more_vert_rounded, color: lxMuted),
-        onPressed: () =>
-            showSongActions(context, controller, song, queue: queue),
-      ),
+      onTap: onSelect == null
+          ? _play
+          : selectionEnabled
+          ? onSelect
+          : null,
+      selected: selected ?? false,
+      trailing: onSelect != null
+          ? reorderHandle ?? const SizedBox(width: 24)
+          : IconButton(
+              tooltip: '${song.name}的更多操作',
+              icon: const Icon(Icons.more_vert_rounded, color: lxMuted),
+              onPressed: () =>
+                  showSongActions(context, controller, song, queue: queue),
+            ),
     ),
   );
 }

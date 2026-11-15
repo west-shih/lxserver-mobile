@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../core/lx_api.dart';
 import '../library/library_controller.dart';
+import '../library/collection_metadata.dart';
 
 class PlaylistSummary {
   PlaylistSummary(this.data, this.source);
@@ -10,6 +11,7 @@ class PlaylistSummary {
   String get id => '${data['id']}';
   String get name => '${data['name'] ?? '未命名歌单'}';
   String get image => '${data['img'] ?? ''}';
+  CollectionMetadata get metadata => CollectionMetadata.fromJson(data);
   String get author => '${data['author'] ?? ''}';
   String get count => '${data['play_count'] ?? ''}';
 }
@@ -119,6 +121,21 @@ class DiscoveryController extends ChangeNotifier {
     return load(session, categories: true);
   }
 
+  PlaylistSummary originalSummary(MusicCollection collection) {
+    final source = collection.source;
+    if (source == null || collection.sourceListId.isEmpty) {
+      throw const ApiFailure('该歌单没有可打开的原平台来源');
+    }
+    return playlists
+            .where((p) => p.source == source && p.id == collection.sourceListId)
+            .firstOrNull ??
+        PlaylistSummary({
+          'id': collection.sourceListId,
+          'name': collection.name,
+          'img': collection.cover,
+        }, source);
+  }
+
   Future<SongBatch> detail(
     Session session,
     PlaylistSummary summary,
@@ -131,12 +148,15 @@ class DiscoveryController extends ChangeNotifier {
     );
     if (data is! Map) throw const ApiFailure('歌单详情格式不兼容');
     final songs = parseSongs(data['list'], fallback: summary.source);
+    final info = data['info'] is Map ? data['info'] as Map : const {};
     final total = num.tryParse('${data['total']}');
     final limit = num.tryParse('${data['limit']}');
     return SongBatch(
       songs,
       songs.isNotEmpty &&
           (total != null && limit != null ? page * limit < total : true),
+      image: firstImage([info['img'], info['pic']]),
+      metadata: summary.metadata.merge(CollectionMetadata.fromJson(info)),
     );
   }
 
