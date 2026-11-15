@@ -37,7 +37,7 @@ void main() {
       );
     await tester.pumpWidget(LxApp(controller: c));
     await tester.pumpAndSettle();
-    expect(find.text('全部'), findsOneWidget);
+    expect(find.text('全部'), findsNothing);
     await tester.drag(
       find.byKey(const ValueKey('search-platforms')),
       const Offset(-240, 0),

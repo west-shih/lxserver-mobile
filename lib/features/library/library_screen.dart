@@ -4,6 +4,7 @@ import '../../app/controller.dart';
 import '../../app/theme.dart';
 import '../../core/lx_api.dart';
 import '../../shared/song_art.dart';
+import '../../shared/platform_filters.dart';
 import 'collection_screen.dart';
 import 'collection_actions.dart';
 import 'library_controller.dart';
@@ -191,28 +192,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(minHeight: 48),
-                  child: Row(
-                    children: [
-                      for (final (index, label) in ['歌单', '歌手', '专辑'].indexed)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: Text(label),
-                            selected: _tab == index,
-                            showCheckmark: false,
-                            visualDensity: VisualDensity.compact,
-                            onSelected: _busy
-                                ? null
-                                : (_) => setState(() => _tab = index),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
+              child: EqualFilterRow(
+                labels: const ['歌单', '歌手', '专辑'],
+                selectedIndex: _tab,
+                onSelected: _busy
+                    ? null
+                    : (index) => setState(() => _tab = index),
               ),
             ),
             SliverToBoxAdapter(

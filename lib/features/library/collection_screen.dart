@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
+
+import '../../shared/app_modal.dart';
+
 import 'package:flutter/foundation.dart';
 
 import '../../app/controller.dart';
 import '../../app/theme.dart';
 import '../../core/lx_api.dart';
+import '../../core/page_window.dart';
 import '../../shared/scrolling_title.dart';
 import '../../shared/song_tile.dart';
 import '../../shared/playlist_edit_glyph.dart';
+import '../../shared/result_pagination.dart';
 import '../discovery/discovery_controller.dart';
 import '../player/player_views.dart';
 import '../player/quality.dart';
@@ -45,6 +50,8 @@ class _CollectionScreenState extends State<CollectionScreen> {
   bool _dirtyOrder = false;
   bool _dragging = false;
   int _visiblePage = 0;
+  int? _reportedTotal;
+  bool _pageTurning = false;
   int _page = 0;
   bool _loading = false;
   bool _more = false;
@@ -115,6 +122,7 @@ class _CollectionScreenState extends State<CollectionScreen> {
         _songs = [..._songs, ...fresh];
         _page = page;
         _more = result.hasMore && fresh.isNotEmpty;
+        _reportedTotal = _more ? result.total ?? _reportedTotal : _songs.length;
         _metadata = _metadata.merge(result.metadata);
         _remoteImage = firstImage([result.image, _remoteImage]);
       });
@@ -130,18 +138,33 @@ class _CollectionScreenState extends State<CollectionScreen> {
   }
 
   Future<void> _turn(int delta) async {
-    final next = _visiblePage + delta;
-    while (_search.text.trim().isEmpty &&
-        delta > 0 &&
-        _songs.length < (next + 1) * _pageSize &&
-        _more &&
-        _error == null) {
-      await _load();
-      if (!mounted) return;
+    await _turnTo(_visiblePage + delta);
+  }
+
+  Future<void> _turnTo(int next) async {
+    if (_loading || _pageTurning || next < 0) return;
+    final size = _pageSize;
+    final query = _search.text.trim();
+    setState(() => _pageTurning = true);
+    try {
+      while (query.isEmpty && _songs.length < (next + 1) * size && _more) {
+        await _load();
+        if (!mounted || size != _pageSize || query != _search.text.trim()) {
+          return;
+        }
+        if (_error != null) break;
+      }
+      if (!mounted || size != _pageSize || query != _search.text.trim()) return;
+      if (next * size >= _filtered.length) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(_error ?? '该页暂无结果，请尝试前面的页码')));
+        return;
+      }
+      setState(() => _visiblePage = next);
+      if (_scroll.hasClients) _scroll.jumpTo(0);
+    } finally {
+      if (mounted) setState(() => _pageTurning = false);
     }
-    if (!mounted || next < 0 || next * _pageSize >= _filtered.length) return;
-    setState(() => _visiblePage = next);
-    _scroll.jumpTo(0);
   }
 
   void _searchMode(bool value) {
@@ -250,9 +273,10 @@ class _CollectionScreenState extends State<CollectionScreen> {
       return;
     }
     if (fromBack) {
-      final choice = await showDialog<String>(
+      final choice = await showAppDialog<String>(
         context: context,
         builder: (dialog) => AlertDialog(
+          scrollable: true,
           title: const Text('保存歌曲排序？'),
           content: const Text('拖动后的顺序尚未保存。'),
           actions: [
@@ -313,9 +337,11 @@ class _CollectionScreenState extends State<CollectionScreen> {
     final session = c.session;
     if (session == null) return;
     final remove = Set<String>.from(_selected);
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
+      dangerous: true,
       builder: (dialog) => AlertDialog(
+        scrollable: true,
         title: Text('从歌单删除 ${remove.length} 首歌曲？'),
         content: Text(
           '删除会同步到服务器，本机下载与正在播放的队列保留。${_dirtyOrder ? '\n同时保存当前拖动后的顺序。' : ''}${_collection.isLinked ? '\n之后刷新同步原歌单时，这些歌曲可能重新加入。' : ''}',
@@ -371,18 +397,21 @@ class _CollectionScreenState extends State<CollectionScreen> {
       _editFailure(const ApiFailure('无法读取目标歌单，请刷新后重试'));
       return;
     }
-    final target = await showModalBottomSheet<MusicCollection>(
+    final target = await showAppSheet<MusicCollection>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
       builder: (sheet) => SafeArea(
         child: SizedBox(
-          height: MediaQuery.sizeOf(sheet).height * .6,
+          height: (80 + c.library.collections.length * 64.0).clamp(
+            200.0,
+            MediaQuery.sizeOf(sheet).height * .6,
+          ),
           child: Column(
             children: [
-              ListTile(
-                title: const Text('收藏到歌单'),
-                subtitle: Text('已选 ${songs.length} 首，重复歌曲不会重复添加'),
+              SheetHeader(
+                title: '收藏到歌单',
+                subtitle: '已选 ${songs.length} 首，重复歌曲不会重复添加',
               ),
               Expanded(
                 child: ListView(
@@ -481,9 +510,10 @@ class _CollectionScreenState extends State<CollectionScreen> {
       await performCollectionAction(context, c, existing, 'delete');
       return;
     }
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (dialog) => AlertDialog(
+        scrollable: true,
         title: const Text('收藏到我的歌单？'),
         content: const Text('将完整获取原歌单并保存到服务器。请避免同时在其他设备编辑歌单。'),
         actions: [
@@ -532,7 +562,7 @@ class _CollectionScreenState extends State<CollectionScreen> {
     final session = c.session;
     if (songs.isEmpty || session == null) return;
     var selectedQuality = c.player.preferredQuality;
-    final quality = await showModalBottomSheet<String>(
+    final quality = await showAppSheet<String>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
@@ -542,35 +572,13 @@ class _CollectionScreenState extends State<CollectionScreen> {
             height: MediaQuery.sizeOf(sheet).height * .6,
             child: Column(
               children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '下载 ${songs.length} 首歌曲',
-                          style: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size(0, 38),
-                        ),
-                        onPressed: () => Navigator.pop(sheet, selectedQuality),
-                        icon: const Icon(Icons.download_rounded, size: 18),
-                        label: const Text('下载'),
-                      ),
-                    ],
-                  ),
-                ),
+                SheetHeader(title: '下载 ${songs.length} 首歌曲'),
                 Expanded(
                   child: ListView(
                     children: [
                       for (final q in AudioQuality.values)
                         ListTile(
+                          selected: selectedQuality == q.id,
                           title: Text(q.label),
                           subtitle: Text(q.detail),
                           trailing: selectedQuality == q.id
@@ -579,6 +587,17 @@ class _CollectionScreenState extends State<CollectionScreen> {
                           onTap: () => update(() => selectedQuality = q.id),
                         ),
                     ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () => Navigator.pop(sheet, selectedQuality),
+                      icon: const Icon(Icons.download_rounded, size: 18),
+                      label: const Text('下载'),
+                    ),
                   ),
                 ),
               ],
@@ -630,7 +649,16 @@ class _CollectionScreenState extends State<CollectionScreen> {
       final paged = c.pagedCollections;
       final query = _search.text.trim().toLowerCase();
       final filtered = _filtered;
-      final pageCount = (filtered.length / _pageSize).ceil().clamp(1, 1000000);
+      final total = query.isNotEmpty || widget.fetchPage == null || !_more
+          ? filtered.length
+          : _reportedTotal;
+      final loadedPageCount = (filtered.length / _pageSize).ceil().clamp(
+        1,
+        1000000,
+      );
+      final pageCount = total == null
+          ? loadedPageCount
+          : displayPageCount(total, _pageSize);
       final currentPage = _visiblePage.clamp(0, pageCount - 1);
       final visible = paged
           ? filtered.skip(currentPage * _pageSize).take(_pageSize).toList()
@@ -999,57 +1027,30 @@ class _CollectionScreenState extends State<CollectionScreen> {
                     ),
                   ),
                   if (paged && (pageCount > 1 || (_more && query.isEmpty)))
-                    DecoratedBox(
+                    ResultPagination(
                       key: const ValueKey('collection-pagination'),
-                      decoration: const BoxDecoration(
-                        border: Border(
-                          top: BorderSide(color: Color(0xFFE5EDE8)),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          IconButton(
-                            tooltip: '上一页',
-                            style: IconButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: const Size(36, 32),
-                              fixedSize: const Size(36, 32),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            visualDensity: VisualDensity.standard,
-                            onPressed: currentPage == 0 || _loading
-                                ? null
-                                : () => _turn(-1),
-                            icon: const Icon(Icons.chevron_left_rounded),
-                          ),
-                          Text(
-                            '第 ${currentPage + 1} / $pageCount 页${_more && query.isEmpty ? ' · 还有更多' : ''}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: lxMuted,
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: '下一页',
-                            style: IconButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: const Size(36, 32),
-                              fixedSize: const Size(36, 32),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            visualDensity: VisualDensity.standard,
-                            onPressed:
-                                _loading ||
-                                    ((currentPage + 1) * _pageSize >=
-                                            filtered.length &&
-                                        (!_more || query.isNotEmpty))
-                                ? null
-                                : () => _turn(1),
-                            icon: const Icon(Icons.chevron_right_rounded),
-                          ),
-                        ],
-                      ),
+                      page: currentPage,
+                      pageCount: total == null ? null : pageCount,
+                      loadedPageCount: loadedPageCount,
+                      hasMore: _more && query.isEmpty,
+                      onJump: _loading || _pageTurning || _saving || _dragging
+                          ? null
+                          : _turnTo,
+                      onPrevious:
+                          currentPage == 0 ||
+                              _loading ||
+                              _pageTurning ||
+                              _dragging
+                          ? null
+                          : () => _turn(-1),
+                      onNext:
+                          _loading ||
+                              _pageTurning ||
+                              _dragging ||
+                              (currentPage + 1 >= pageCount &&
+                                  (!_more || query.isNotEmpty))
+                          ? null
+                          : () => _turn(1),
                     ),
                   if (_saving) const LinearProgressIndicator(minHeight: 2),
                   if (_selecting)

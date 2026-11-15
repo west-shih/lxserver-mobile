@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../shared/app_modal.dart';
+
 import '../../app/theme.dart';
 import '../../core/lx_api.dart';
 import '../../shared/song_art.dart';
@@ -115,8 +117,11 @@ class CollectionHeader extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: InkWell(
-              onTap: () => showModalBottomSheet<void>(
+              onTap: () => showAppSheet<void>(
                 context: context,
+                title: '歌单简介',
+                subtitle: name,
+                closeLabel: '关闭',
                 showDragHandle: true,
                 isScrollControlled: true,
                 builder: (context) => SafeArea(
@@ -126,14 +131,6 @@ class CollectionHeader extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          name,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
                         Text(
                           metadata.description,
                           style: const TextStyle(height: 1.6),

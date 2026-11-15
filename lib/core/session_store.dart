@@ -5,6 +5,19 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'lx_api.dart';
 
 class SessionStore {
+  Future<Map<String, dynamic>> readPlatformSelection() async {
+    try {
+      final value = jsonDecode(
+        await _storage.read(key: 'lx.platformSelection') ?? '{}',
+      );
+      return value is Map<String, dynamic> ? value : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<void> savePlatformSelection(Map<String, dynamic> value) =>
+      _storage.write(key: 'lx.platformSelection', value: jsonEncode(value));
   Future<String?> readCollectionPageSize() =>
       _storage.read(key: 'lx.collectionPageSize');
   Future<void> saveCollectionPageSize(int value) =>

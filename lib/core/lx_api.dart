@@ -3,6 +3,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'page_window.dart';
+
 enum MusicSource {
   kw('酷我'),
   kg('酷狗'),
@@ -13,6 +15,14 @@ enum MusicSource {
   const MusicSource(this.label);
   final String label;
 }
+
+const musicSourceOrder = [
+  MusicSource.wy,
+  MusicSource.tx,
+  MusicSource.kg,
+  MusicSource.kw,
+  MusicSource.mg,
+];
 
 enum FailureKind { unknown, network, permission, sourceUnavailable, storage }
 
@@ -151,9 +161,11 @@ class Song {
 }
 
 class SearchPage {
-  const SearchPage(this.songs, this.hasMore);
+  const SearchPage(this.songs, this.hasMore, {this.total, this.pageSize = 20});
   final List<Song> songs;
   final bool hasMore;
+  final int? total;
+  final int pageSize;
 }
 
 class PlaybackResource {
@@ -398,6 +410,8 @@ class LxApi {
       songs,
       data['hasMore'] == true ||
           (data['hasMore'] == null && songs.length == 20),
+      total: resultTotal(data['total']),
+      pageSize: (resultTotal(data['pageSize']) ?? 20).clamp(1, 100000),
     );
   }
 

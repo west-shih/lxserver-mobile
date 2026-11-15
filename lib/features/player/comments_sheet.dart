@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../shared/app_modal.dart';
+
 import '../../app/controller.dart';
 import '../../app/theme.dart';
 import '../../core/lx_api.dart';
@@ -7,7 +9,7 @@ import 'comments_controller.dart';
 
 void showComments(BuildContext context, AppController app, Song song) {
   if (app.session == null) return;
-  showModalBottomSheet<void>(
+  showAppSheet<void>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
@@ -50,37 +52,15 @@ class _CommentsSheetState extends State<_CommentsSheet> {
         listenable: c,
         builder: (context, _) => Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 8, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          '歌曲评论',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${widget.song.name} · ${widget.song.sourceLabel}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: lxMuted, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: '关闭评论',
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close_rounded),
-                  ),
-                ],
+            SheetHeader(
+              title: '歌曲评论',
+              subtitle: '${widget.song.name} · ${widget.song.sourceLabel}',
+              trailing: Tooltip(
+                message: '关闭评论',
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('关闭'),
+                ),
               ),
             ),
             Padding(

@@ -81,4 +81,14 @@ LibraryController 在完整分页后聚合歌曲/封面；收藏重读快照查�
 
 CollectionScreen 用单个 CustomScrollView 组织可滚动头部、SliverPersistentHeader 吸附工具栏和歌曲；搜索在导航按需展开，PopScope 优先退出搜索/选择。搜索/分页只派生显示条目，不改变已加载播放队列。多选状态归详情页所有，PlayerController.enqueueNext 将选择歌曲去重放在当前歌曲之后且不自动播放；批量下载经 LocalMediaController，页面不管理文件。分页模式及数量由 AppController/SessionStore 保存。ScrollingTitle 只对超宽标题运行动画并遵循系统减少动态效果，保留完整无障碍标签。
 
-私人歌曲编辑通过 LibraryController.editSongs/_editSnapshot 保存，歌单混排通过 reorderCollections 协调歌单数据与账号显示设置，两者共用控制器写入锁和会话版本；library_edit 是纯快照变换，保留未知字段并检查排序基线。CollectionScreen 只持有选择和排序草稿，调用控制器保存，不直接请求 HTTP。确认删除可合并待保存顺序，成功回查失败不会重发写入。编辑工具栏由 CollectionEditActions 和 PlaylistEditGlyph 提供；原平台歌单没有对应写接口，显示只读边界。LibraryScreen 的 SliverReorderableList 包含全部歌单，系统项可移动但不可删除/改名；松手后暂显新顺序，控制器先 GET 最新歌单/账号设置，检查完整显示顺序，仅在自建项相对顺序变化时 POST 歌单，再 POST 保留其他字段的 favoriteSidebarOrder。网页隐藏入口保持原位置，新增歌单追加展示；读取设置失败不阻止浏览，但保存时必须有合法设置。双写无事务，部分失败展示已确认状态和明确提示，不自动回滚或重试写入。分类复用 ChoiceChip，主页顶栏统一占用高度（搜索框默认 40，随文字缩放），分类行最小 48 高，保证首次切页标签对齐；“我的”标题为“我的收藏”；MusicBadge 保留原英文 height=1.3 与自然字体度量，不强制共用 strut/leading；含中文标签仅在自然基线上做 0.5 逻辑像素的向上视觉微调（随文字缩放），避免影响英文。真机视觉效果仍需用户复核。
+私人歌曲编辑通过 LibraryController.editSongs/_editSnapshot 保存，歌单混排通过 reorderCollections 协调歌单数据与账号显示设置，两者共用控制器写入锁和会话版本；library_edit 是纯快照变换，保留未知字段并检查排序基线。CollectionScreen 只持有选择和排序草稿，调用控制器保存，不直接请求 HTTP。确认删除可合并待保存顺序，成功回查失败不会重发写入。编辑工具栏由 CollectionEditActions 和 PlaylistEditGlyph 提供；原平台歌单没有对应写接口，显示只读边界。LibraryScreen 的 SliverReorderableList 包含全部歌单，系统项可移动但不可删除/改名；松手后暂显新顺序，控制器先 GET 最新歌单/账号设置，检查完整显示顺序，仅在自建项相对顺序变化时 POST 歌单，再 POST 保留其他字段的 favoriteSidebarOrder。网页隐藏入口保持原位置，新增歌单追加展示；读取设置失败不阻止浏览，但保存时必须有合法设置。双写无事务，部分失败展示已确认状态和明确提示，不自动回滚或重试写入。分类复用 ChoiceChip，主页顶栏统一占用高度（搜索框默认 40，随文字缩放），分类行最小 44 高，保证首次切页标签对齐；“我的”标题为“我的收藏”；MusicBadge 保留原英文 height=1.3 与自然字体度量，不强制共用 strut/leading；含中文标签仅在自然基线上做 0.5 逻辑像素的向上视觉微调（随文字缩放），避免影响英文。真机视觉效果仍需用户复核。
+
+PlatformFilters 与“我的收藏”复用 EqualFilterRow，统一等宽铺满、左右留白与间距，无额外底部 padding。按文字实际宽度确定最小单元宽度，大字体/窄屏保留等宽并横滑。平台采用 musicSourceOrder（网易/QQ/酷狗/酷我/咪咕），首次默认网易，无选中项仍表示聚合，已保存 all 不被覆盖。SessionStore 只保存 search/discovery 的平台标识或 all，不保存标签数量、分类缓存或服务端配置；按设备偏好恢复，沿用现有音源状态接口核对有效性，已禁用的平台选择回聚合，状态未知仍保留平台。
+
+DiscoveryController 的聚合沿用歌曲搜索思路：各平台独立分页与去重，按平台轮流合并，失败单独提示；切换/重置后丢弃旧响应。聚合模式仅推荐/关键词搜索，不映射平台分类；选定平台才显示原生分类与排序。推荐首次按平台从现有 tags 响应取得首个原生排序标识，当前控制器生命周期内复用；关键词搜索不请求分类，不额外请求“平台标签数量”。没有新依赖或服务端聚合接口。
+
+搜索、公共歌单和歌单内歌曲共用 ResultPagination 的 32px 分页条及页码面板，单平台按既有 pagedCollections/collectionPageSize 偏好分页，聚合固定连续浏览。搜索/歌单接口的 total 用于计算展示总页数；缺失且尚未读完时仅显示当前页，不把缓存页数当总页数。未知总数的跳页只允许已加载范围。分页时主页 MiniPlayer 使用 compact 边距，与歌单详情一致，不另加上下空白。
+
+PageWindow 缓存单平台原生页及 total/nativeSize；展示页大小与接口页大小分开。跳页仅顺序读取目标窗口相交的缺失原生页，缓存仍按原生页号合并、歌曲身份去重，播放仍使用已加载列表。控制器的 searchRevision/resultRevision 隔离新查询，未完成的旧翻页不阻止新查询翻页。总数是原平台自报值；目标页为空或完全重复时保留当前页并提示，不自动重试。分类栏保持紧凑，tags.sortList 为 0 项不占位，1 项纯文字，多项下拉。
+
+app_modal.dart 统一底部面板和确认框的白底、圆角、标题/副标题、取消入口、输入框、42px 确认按钮与选中态。选择/信息用底部面板，重命名等输入用适配键盘的紧凑面板；删除/清理/退出仍明确确认并使用警示色。showAppSheet 管理安全区、最大可用高度和键盘遮挡，内容高度按场景确定；音质即时生效的面板使用“关闭”，未提交的选择使用“取消”。showPageJump 使用同一面板，输入/惰性滚轮二选一，确认校验后返回零基页码，不自行发请求。没有新依赖或第二套播放器。

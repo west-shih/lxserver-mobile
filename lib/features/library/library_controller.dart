@@ -14,11 +14,13 @@ class SongBatch {
     this.hasMore, {
     this.image = '',
     this.metadata = const CollectionMetadata(),
+    this.total,
   });
   final List<Song> songs;
   final bool hasMore;
   final CollectionMetadata metadata;
   final String image;
+  final int? total;
 }
 
 class MusicCollection {

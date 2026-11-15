@@ -64,6 +64,13 @@ class _LxAppState extends State<LxApp> with WidgetsBindingObserver {
         brightness: Brightness.light,
       ).copyWith(primary: lxGreen, surface: Colors.white, onSurface: lxInk),
       scaffoldBackgroundColor: lxCanvas,
+      popupMenuTheme: PopupMenuThemeData(
+        color: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        textStyle: const TextStyle(fontSize: 14, color: lxInk),
+      ),
       appBarTheme: const AppBarTheme(
         backgroundColor: lxCanvas,
         foregroundColor: lxInk,

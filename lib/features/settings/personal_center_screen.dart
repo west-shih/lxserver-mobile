@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../../shared/app_modal.dart';
+
 import '../../app/controller.dart';
 import '../../app/theme.dart';
 import '../local_media/local_media_screens.dart';
 import '../player/quality.dart';
 
 void showPreferredQuality(BuildContext context, AppController controller) {
-  showModalBottomSheet<void>(
+  showAppSheet<void>(
     context: context,
     showDragHandle: true,
     isScrollControlled: true,
@@ -15,15 +17,17 @@ void showPreferredQuality(BuildContext context, AppController controller) {
         height: MediaQuery.sizeOf(sheetContext).height * .65,
         child: Column(
           children: [
-            const ListTile(
-              title: Text('首选音质'),
-              subtitle: Text('用于后续播放；当前歌曲保持不变，不可用时自动降低音质'),
+            const SheetHeader(
+              title: '首选音质',
+              subtitle: '用于后续播放；当前歌曲保持不变，不可用时自动降低音质',
             ),
             Expanded(
               child: ListView(
                 children: [
                   for (final quality in AudioQuality.values)
                     ListTile(
+                      selected:
+                          controller.player.preferredQuality == quality.id,
                       title: Text(quality.label),
                       subtitle: Text(quality.detail),
                       trailing: controller.player.preferredQuality == quality.id
@@ -59,9 +63,11 @@ class PersonalCenterScreen extends StatelessWidget {
   final AppController controller;
 
   Future<void> _logout(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
+      dangerous: true,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text('退出当前账号？'),
         content: const Text('播放将停止，本机下载保留。你可以重新登录或切换服务器。'),
         actions: [
@@ -217,8 +223,10 @@ class PersonalCenterScreen extends StatelessWidget {
                       Icons.auto_stories_outlined,
                       color: lxGreen,
                     ),
-                    title: const Text('歌单浏览'),
+                    title: const Text('列表浏览'),
                     trailing: DropdownButton<int>(
+                      borderRadius: BorderRadius.circular(12),
+                      dropdownColor: Colors.white,
                       value: controller.pagedCollections
                           ? controller.collectionPageSize
                           : 0,
@@ -229,7 +237,7 @@ class PersonalCenterScreen extends StatelessWidget {
                         for (final size in AppController.collectionPageSizes)
                           DropdownMenuItem(
                             value: size,
-                            child: Text('每页 $size 首'),
+                            child: Text('每页 $size 项'),
                           ),
                       ],
                       onChanged: (value) async {

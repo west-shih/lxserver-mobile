@@ -178,3 +178,17 @@
 - `src/server/server.ts` GET/POST `/api/user/settings` 使用普通用户 x-user-name/token 鉴权，GET 返回原始设置对象，无文件则 `{}`；POST 完整替换 userSettingsJSON 并返回 `{success:true}`。公开受限用户写入另有管理员限制与字段白名单，客户端不索要管理员权限、不绕过 403。该接口有缓存/调度等已知设置副作用，故客户端先 GET 并保留所有其他字段，仅修改 favoriteSidebarOrder，不更改 saveAccountSettingsToFile。
 - 手机读取账号显示顺序，忽略当前不存在的项，未记录的新歌单追加显示。拖动前并行 GET 最新歌单与设置，核对当前可见顺序及唯一完整排列；先按需保存 userList 子序列，再按需保存混排设置。保留网页歌手/专辑/公开收藏等当前手机列表不展示的 ID 及其相对位置，不将 love/default 塞入 userList。成功后回读；失败不自动重发写入。两个整件替换接口没有 CAS/事务，第二步失败会提示私人排序已保存但显示排序未确认，而非宣称全部失败或已原子同步。
 - library_order_test 为 Mock 证据，覆盖系统项移动、重新加载恢复、最新账号字段和隐藏 ID 保留、过期显示顺序拒绝、部分保存提示、回查失败不重发。真实部署设置写入与网页接收仍待验收。
+
+### 客户端简单歌单聚合与平台选择
+
+固定 v2.2.0 `server.ts` 的 GET `/api/music/songList/list`、`search`、`tags` 都按 source 调用单平台 SDK，没有服务端 all 参数。客户端聚合并行调用原有单平台接口，不发 source=all；推荐先读取 tags.sortList 的首个排序 ID（与原单平台实现相同，空列表沿用 hot），控制器生命周期内复用；搜索只使用 source/text/page。每平台独立游标，以平台+歌单 ID 区分，重复/空页停止继续拉取；部分失败可重试且不清空其他平台结果。源信息按原 source 传入详情，不把平台同 ID 歌单互相覆盖。没有跨平台分类协议，也不保证统一热度排序。
+
+平台标签数量不另加接口，仍来自既有音源状态解析；只在本机保存两页的 platform ID/all，启动恢复后由原可用平台检查纠正。偏好缺失、损坏或未知 ID 默认网易；已保存 all 继续聚合，已禁用平台选择回聚合，状态接口失败仍保留平台为未知。discovery_aggregate_test 与 platform_selection_test 为 Mock/组件证据。Android SM S9180 profile 版已只读确认五个平台的推荐结果在同一列表交错展示及来源标签，不保存实际歌单名/ID；真实聚合搜索、后续翻页、失败恢复与偏好跨启动仍待真机复核。
+
+### 总数、原生页与展示分页（v2.2.0）
+
+- `server.ts` 的 `/api/music/search` 歌曲分支返回 list/total/allPage/pageSize/fetchedPages/stopReason/hasMore/source。客户端显式传 limit=20，使用单原生页模式；SDK 的实际 pageSize 可能受自身上限约束。total/allPage 是平台自报值，服务端源码明确提示页数墙、重复页及预算限制，不能解释为全部可取得。客户端保留 total/pageSize，以用户设置数量重新计算展示页数，不直接把原生 allPage 当展示页数。
+- `/api/music/songList/list`、`search`、`detail` 沿用单平台源，列表/搜索的 total/limit 用于展示总数及原生页映射，详情 total 经 SongBatch 保留。缺少总数且仍有后续时只显示“第 N 页”；全部已加载或私人快照可使用实际条数。不存在 source=all 或新的服务端分页接口。
+- 聚合固定连续，不计算跨平台总页数。单平台且打开分页时，PageWindow 记录已读原生页，按展示窗口读取相交的缺失原生页（例：20 条原生页，跳到第 50 个 20 条展示页仅请求原生第 50 页）。已有缓存仍可回看，原生请求大小不因展示设置改变，账号/查询切换使旧响应失效。总数缺失时不猜任意远端页码，只对已加载范围开放跳页。
+- 请求失败、空页或全页重复不跳空白页、不自动循环重试；错误不触发写入。歌曲队列保留已加载歌曲，跳页不自动播放、不修改私人歌单。外部详情仍复用已有完整批次读取/去重逻辑；未读部分只在用户明确翻页/跳页时继续读取。
+- `real_pagination_modal_test` 覆盖 total/pageSize 解析、远端直跳及跨批次窗口、缓存保留、聚合无分页、未知总数不伪造分母、空/重复页、三处跳页面板、输入/滚轮/取消与键盘布局。这些为 Mock/组件证据；真实平台总数的准确性不作保证。

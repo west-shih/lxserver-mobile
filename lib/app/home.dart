@@ -51,10 +51,8 @@ class _MusicHomeState extends State<MusicHome> {
     }
     if (tab == 1 && !_loadedDiscovery && c.availableSources.isNotEmpty) {
       _loadedDiscovery = true;
-      final source = c.availableSources.contains(c.discovery.source)
-          ? c.discovery.source
-          : c.availableSources.first;
-      c.discovery.changeSource(session, source);
+      c.discovery.sources = List.of(c.availableSources);
+      c.discovery.load(session, categories: !c.discovery.aggregate);
     }
   }
 
@@ -189,7 +187,14 @@ class _MusicHomeState extends State<MusicHome> {
                 ],
               ),
             ),
-            MiniPlayer(player: c.player, controller: c),
+            MiniPlayer(
+              player: c.player,
+              controller: c,
+              compact:
+                  c.pagedCollections &&
+                  ((_tab == 0 && !c.aggregate) ||
+                      (_tab == 1 && !c.discovery.aggregate)),
+            ),
           ],
         ),
       ),

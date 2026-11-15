@@ -169,6 +169,7 @@ void main() {
       }),
     );
     final c = AppController(api: api)
+      ..aggregate = true
       ..session = session
       ..availability = const SourceAvailability([
         MusicSource.kw,
@@ -177,11 +178,11 @@ void main() {
       ], 1);
     addTearDown(c.dispose);
     await c.search('test');
-    expect(c.songs.map((s) => s.id), ['kw:1', 'wy:1']);
+    expect(c.songs.map((s) => s.id), ['wy:1', 'kw:1']);
     expect(c.sourceFailures.keys, contains(MusicSource.kg));
     expect(c.availableSources, contains(MusicSource.kg));
     await c.search('test', more: true);
-    expect(c.songs.map((s) => s.id), ['kw:1', 'kg:1', 'wy:1', 'kw:2']);
+    expect(c.songs.map((s) => s.id), ['wy:1', 'kg:1', 'kw:1', 'kw:2']);
     expect(calls.where((v) => v == 'kg:1').length, 2);
     expect(calls.where((v) => v.startsWith('wy:')).length, 1);
     expect(c.hasMore, false);
@@ -291,7 +292,7 @@ void main() {
       );
       final c = AppController(api: api)..session = session;
       addTearDown(c.dispose);
-      await c.discovery.load(session, categories: true);
+      await c.discovery.changeSource(session, MusicSource.kg);
       expect(c.discovery.sort, '5');
       expect(c.discovery.hasMore, false);
       final result = await c.discovery.detail(

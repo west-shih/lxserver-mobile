@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'app_modal.dart';
+
 import '../app/controller.dart';
 import '../core/lx_api.dart';
 import '../features/player/quality_sheet.dart';
@@ -15,8 +17,9 @@ void showSongActions(
 }) {
   final origin = context;
   final messenger = ScaffoldMessenger.of(context);
-  showModalBottomSheet<void>(
+  showAppSheet<void>(
     context: context,
+    title: '歌曲操作',
     showDragHandle: true,
     builder: (context) => SafeArea(
       child: SingleChildScrollView(

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../shared/app_modal.dart';
+
 import '../../app/controller.dart';
 import '../../core/lx_api.dart';
 import 'collection_screen.dart';
@@ -90,40 +92,44 @@ Future<bool> performCollectionAction(
   if (action == 'rename') {
     var draft = collection.name;
     final form = GlobalKey<FormState>();
-    nextName = await showDialog<String>(
+    nextName = await showAppSheet<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('重命名歌单'),
-        content: Form(
+      title: '重命名歌单',
+      builder: (sheet) => SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+        child: Form(
           key: form,
-          child: TextFormField(
-            initialValue: draft,
-            autofocus: true,
-            decoration: const InputDecoration(labelText: '歌单名称'),
-            onChanged: (value) => draft = value,
-            validator: (value) =>
-                value == null || value.trim().isEmpty ? '请输入歌单名称' : null,
-            onFieldSubmitted: (value) {
-              if (form.currentState!.validate()) {
-                Navigator.pop(dialogContext, value.trim());
-              }
-            },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                initialValue: draft,
+                autofocus: true,
+                decoration: const InputDecoration(labelText: '歌单名称'),
+                onChanged: (value) => draft = value,
+                validator: (value) =>
+                    value == null || value.trim().isEmpty ? '请输入歌单名称' : null,
+                onFieldSubmitted: (value) {
+                  if (form.currentState!.validate()) {
+                    Navigator.pop(sheet, value.trim());
+                  }
+                },
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () {
+                    if (form.currentState!.validate()) {
+                      Navigator.pop(sheet, draft.trim());
+                    }
+                  },
+                  child: const Text('保存'),
+                ),
+              ),
+            ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (form.currentState!.validate()) {
-                Navigator.pop(dialogContext, draft.trim());
-              }
-            },
-            child: const Text('保存'),
-          ),
-        ],
       ),
     );
     if (nextName == null ||
@@ -135,9 +141,11 @@ Future<bool> performCollectionAction(
   }
   final confirmed = action == 'rename'
       ? true
-      : await showDialog<bool>(
+      : await showAppDialog<bool>(
           context: context,
+          dangerous: action == 'delete',
           builder: (context) => AlertDialog(
+            scrollable: true,
             title: Text(action == 'delete' ? '删除歌单？' : '刷新同步歌单？'),
             content: Text(
               action == 'delete'
@@ -199,21 +207,14 @@ Future<void> showCollectionActions(
   MusicCollection collection,
 ) async {
   if (collection.isSystem || controller.library.mutating) return;
-  final action = await showModalBottomSheet<String>(
+  final action = await showAppSheet<String>(
     context: context,
+    title: collection.name,
     showDragHandle: true,
     builder: (context) => SafeArea(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            child: Text(
-              collection.name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
           ListTile(
             leading: const Icon(Icons.edit_rounded),
             title: const Text('重命名'),
@@ -233,7 +234,7 @@ Future<void> showCollectionActions(
           ],
           ListTile(
             leading: const Icon(Icons.delete_outline_rounded),
-            title: const Text('删除歌单'),
+            title: const Text('删除歌单', style: TextStyle(color: modalDanger)),
             onTap: () => Navigator.pop(context, 'delete'),
           ),
         ],

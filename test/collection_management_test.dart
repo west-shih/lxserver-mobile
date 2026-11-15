@@ -526,7 +526,7 @@ void main() {
       await tester.ensureVisible(find.byType(DropdownButton<int>));
       await tester.tap(find.byType(DropdownButton<int>));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('每页 30 首').last);
+      await tester.tap(find.text('每页 30 项').last);
       await tester.pumpAndSettle();
       expect(c.collectionPageSize, 30);
       expect(await c.store.readCollectionPageSize(), '30');

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../shared/app_modal.dart';
+
 import '../../app/controller.dart';
 import '../../app/theme.dart';
 import '../../core/lx_api.dart';
@@ -28,77 +30,60 @@ void showDownloadQuality(BuildContext context, AppController c, Song song) {
         c.player.preferredQuality,
       ).where((id) => options.any((q) => q.id == id)).firstOrNull ??
       options.firstOrNull?.id;
-  showModalBottomSheet<void>(
+  showAppSheet<void>(
     context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
     builder: (sheet) => StatefulBuilder(
-      builder: (sheet, setState) {
+      builder: (sheet, update) {
         Widget option(AudioQuality q) => ListTile(
           key: ValueKey('download-quality-${q.id}'),
+          selected: selected == q.id,
           title: Text(q.label),
           trailing: selected == q.id
               ? const Icon(Icons.check_rounded, color: lxGreen)
               : null,
-          onTap: () => setState(() => selected = q.id),
+          onTap: () => update(() => selected = q.id),
         );
-        return SafeArea(
-          child: SizedBox(
-            height: MediaQuery.sizeOf(sheet).height * .65,
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                  child: Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          '下载音质',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+        return SizedBox(
+          height: modalPanelHeight(
+            sheet,
+            124 + (known.length + (unknown.isEmpty ? 0 : 1)) * 60.0,
+            minHeight: 220,
+          ),
+          child: Column(
+            children: [
+              const SheetHeader(title: '下载音质'),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  children: [
+                    for (final q in known) option(q),
+                    if (unknown.isNotEmpty)
+                      ExpansionTile(
+                        initiallyExpanded: unknown.any((q) => q.id == selected),
+                        title: const Text('其他音质'),
+                        subtitle: const Text('可用性待确认'),
+                        children: [for (final q in unknown) option(q)],
                       ),
-                      FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size(0, 44),
-                        ),
-                        onPressed: selected == null
-                            ? null
-                            : () {
-                                Navigator.pop(sheet);
-                                downloadSong(
-                                  context,
-                                  c,
-                                  song,
-                                  quality: selected,
-                                );
-                              },
-                        icon: const Icon(Icons.download_rounded, size: 18),
-                        label: const Text('下载'),
-                      ),
-                    ],
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: selected == null
+                        ? null
+                        : () {
+                            Navigator.pop(sheet);
+                            downloadSong(context, c, song, quality: selected);
+                          },
+                    icon: const Icon(Icons.download_rounded, size: 18),
+                    label: const Text('下载'),
                   ),
                 ),
-                Expanded(
-                  child: ListView(
-                    children: [
-                      for (final q in known) option(q),
-                      if (unknown.isNotEmpty)
-                        ExpansionTile(
-                          initiallyExpanded: unknown.any(
-                            (q) => q.id == selected,
-                          ),
-                          title: const Text('其他音质'),
-                          subtitle: const Text('可用性待确认'),
-                          children: [for (final q in unknown) option(q)],
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },
@@ -135,9 +120,11 @@ Future<void> confirmClearSongCache(
   Song song, {
   String? quality,
 }) async {
-  final confirmed = await showDialog<bool>(
+  final confirmed = await showAppDialog<bool>(
     context: context,
+    dangerous: true,
     builder: (dialog) => AlertDialog(
+      scrollable: true,
       title: const Text('清除本机缓存？'),
       content: const Text('已下载的文件会保留。正在播放的缓存会在切歌后清除。'),
       actions: [
@@ -166,8 +153,10 @@ Future<void> confirmClearSongCache(
 
 void showFileDetails(BuildContext context, AppController c, Song song) {
   c.refreshServerFiles();
-  showModalBottomSheet<void>(
+  showAppSheet<void>(
     context: context,
+    title: '存储',
+    closeLabel: '关闭',
     showDragHandle: true,
     isScrollControlled: true,
     builder: (context) => SafeArea(
@@ -181,11 +170,6 @@ void showFileDetails(BuildContext context, AppController c, Song song) {
             return ListView(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
               children: [
-                const Text(
-                  '存储',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 24),
                 const Text('本机', style: TextStyle(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 6),
                 if (local.isEmpty)
@@ -544,6 +528,8 @@ class CacheSettingsScreen extends StatelessWidget {
                 contentPadding: EdgeInsets.zero,
                 title: const Text('自动缓存上限'),
                 trailing: DropdownButton<int>(
+                  borderRadius: BorderRadius.circular(12),
+                  dropdownColor: Colors.white,
                   value: media.cacheLimitMb,
                   items: [
                     for (final value in [0, 256, 512, 1024, 2048])

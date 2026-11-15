@@ -32,6 +32,25 @@ void main() {
             );
       await tester.pumpWidget(LxApp(controller: c));
       await tester.pumpAndSettle();
+      expect(c.availableSources.map((v) => v.label), [
+        '网易',
+        'QQ',
+        '酷狗',
+        '酷我',
+        '咪咕',
+      ]);
+      final platformRects = find
+          .byType(ChoiceChip)
+          .evaluate()
+          .map((element) => tester.getRect(find.byWidget(element.widget)))
+          .toList();
+      for (final rect in platformRects) {
+        expect(rect.width, closeTo(platformRects.first.width, .1));
+      }
+      if (scale == 1) {
+        expect(platformRects.first.left, closeTo(16, .1));
+        expect(platformRects.last.right, closeTo(344, .1));
+      }
       final searchTop = tester
           .getTopLeft(find.byType(ChoiceChip).hitTestable().first)
           .dy;
@@ -55,6 +74,17 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('我的收藏'), findsOneWidget);
       expect(find.text('我的音乐'), findsNothing);
+      final categoryRects = find
+          .byType(ChoiceChip)
+          .evaluate()
+          .map((element) => tester.getRect(find.byWidget(element.widget)))
+          .toList();
+      expect(categoryRects.length, 3);
+      for (final rect in categoryRects) {
+        expect(rect.width, closeTo(categoryRects.first.width, .1));
+      }
+      expect(categoryRects.first.left, closeTo(16, .1));
+      expect(categoryRects.last.right, closeTo(344, .1));
       expect(
         tester.getTopLeft(find.byType(ChoiceChip).hitTestable().first).dy,
         closeTo(searchTop, .1),
@@ -99,12 +129,15 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(search.hitTestable(), findsOneWidget);
-      expect(find.text('全部').hitTestable(), findsNothing);
+      expect(find.widgetWithText(ChoiceChip, '网易').hitTestable(), findsNothing);
       c.keyword = 'new results';
       c.songs = [c.songs.first];
       c.notifyListeners();
       await tester.pumpAndSettle();
-      expect(find.text('全部').hitTestable(), findsOneWidget);
+      expect(
+        find.widgetWithText(ChoiceChip, '网易').hitTestable(),
+        findsOneWidget,
+      );
       expect(tester.takeException(), null);
       await tester.pumpWidget(const SizedBox());
       c.dispose();

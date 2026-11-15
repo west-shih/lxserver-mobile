@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../core/lx_api.dart';
 import '../core/session_store.dart';
+import '../core/page_window.dart';
 import '../features/player/player_controller.dart';
 import '../features/player/playback_cache.dart';
 import '../features/player/playback_resume.dart';
@@ -133,13 +134,35 @@ class AppController extends ChangeNotifier {
   bool searching = false;
   String? searchError;
   String keyword = '';
-  MusicSource source = MusicSource.kw;
-  bool aggregate = true;
+  MusicSource source = MusicSource.wy;
+  bool aggregate = false;
+  Future<void> _platformWrites = Future.value();
+  Future<void> _savePlatforms() {
+    final value = {
+      'search': aggregate ? 'all' : source.name,
+      'discovery': discovery.aggregate ? 'all' : discovery.source.name,
+    };
+    return _platformWrites = _platformWrites
+        .then((_) => store.savePlatformSelection(value))
+        .catchError((Object _) {});
+  }
+
+  Future<void> selectDiscoverySource(MusicSource value) async {
+    final active = session;
+    if (active == null || !availableSources.contains(value)) return;
+    discovery.sources = List.of(availableSources);
+    final loading = !discovery.aggregate && discovery.source == value
+        ? discovery.selectAggregate(active)
+        : discovery.changeSource(active, value);
+    await Future.wait([loading, _savePlatforms()]);
+  }
+
   SourceAvailability? availability;
   bool checkingSources = false;
   String? sourceError;
-  List<MusicSource> get availableSources =>
-      availability?.platforms ?? MusicSource.values;
+  List<MusicSource> get availableSources => musicSourceOrder
+      .where((v) => availability == null || availability!.platforms.contains(v))
+      .toList();
   final Map<MusicSource, List<Song>> _buckets = {};
   final Map<MusicSource, int> _pages = {};
   final Set<MusicSource> _more = {};
@@ -149,9 +172,83 @@ class AppController extends ChangeNotifier {
   int page = 0;
   bool hasMore = false;
   int _searchVersion = 0;
+  int searchRevision = 0;
+  final _searchWindow = PageWindow<Song>((song) => song.id);
+  int? get searchTotal => aggregate ? null : _searchWindow.total;
+  bool get hasSearchWindow =>
+      !aggregate && _searchWindow.ready && searchTotal != null;
+  List<Song> searchPageItems(int displayPage, int size) => hasSearchWindow
+      ? _searchWindow.items(displayPage, size)
+      : songs.skip(displayPage * size).take(size).toList();
+
+  Future<void> ensureSearchPage(int displayPage, int size) async {
+    final active = session;
+    if (active == null || !hasSearchWindow) return;
+    final version = ++_searchVersion;
+    final platform = source;
+    final query = keyword;
+    searching = true;
+    searchError = null;
+    notifyListeners();
+    try {
+      for (final page in _searchWindow.missing(displayPage, size)) {
+        final result = await api.search(active, query, platform, page);
+        if (version != _searchVersion) return;
+        if (result.songs.isEmpty) break;
+        final known = _searchWindow.all.map((song) => song.id).toSet();
+        if (result.songs.every((song) => known.contains(song.id))) {
+          throw const ApiFailure('该页返回重复结果，请尝试前面的页码');
+        }
+        _searchWindow.add(
+          page,
+          result.songs,
+          total: result.total,
+          size: result.pageSize,
+          hasMore: result.hasMore,
+        );
+        songs = _searchWindow.all;
+        _buckets[platform] = List.of(songs);
+        _pages[platform] = _searchWindow.contiguousPages;
+        hasMore = _searchWindow.hasMore;
+        if (hasMore) {
+          _more.add(platform);
+        } else {
+          _more.remove(platform);
+        }
+        localMedia.updateArtwork(songs);
+        notifyListeners();
+      }
+      if (version == _searchVersion &&
+          _searchWindow.items(displayPage, size).isEmpty) {
+        throw const ApiFailure('该页暂无结果，请尝试前面的页码');
+      }
+    } on ApiFailure catch (e) {
+      if (version != _searchVersion) return;
+      searchError = e.message;
+      if (e.unauthorized) expire();
+      rethrow;
+    } finally {
+      if (version == _searchVersion) {
+        searching = false;
+        notifyListeners();
+      }
+    }
+  }
+
   Future<void> restore() async {
     Session? saved;
     try {
+      final selection = await store.readPlatformSelection();
+      final savedSource = MusicSource.values
+          .where((v) => v.name == selection['search'])
+          .firstOrNull;
+      aggregate = selection['search'] == 'all';
+      source = savedSource ?? MusicSource.wy;
+      final savedDiscovery = MusicSource.values
+          .where((v) => v.name == selection['discovery'])
+          .firstOrNull;
+      discovery.aggregate = selection['discovery'] == 'all';
+      discovery.source = savedDiscovery ?? MusicSource.wy;
       pagedCollections = await store.readListMode() == 'true';
       final savedPageSize = int.tryParse(
         await store.readCollectionPageSize() ?? '',
@@ -251,7 +348,6 @@ class AppController extends ChangeNotifier {
     checkingSources = false;
     availability = null;
     sourceError = null;
-    aggregate = true;
     library.reset();
     serverFiles.reset();
     discovery.reset();
@@ -277,6 +373,8 @@ class AppController extends ChangeNotifier {
   }
 
   void _clearSearch() {
+    _searchWindow.clear();
+    searchRevision++;
     ++_searchVersion;
     songs = [];
     keyword = '';
@@ -290,7 +388,7 @@ class AppController extends ChangeNotifier {
     sourceFailures.clear();
   }
 
-  Future<void> refreshSources() async {
+  Future<void> refreshSources({bool reloadResults = true}) async {
     final active = session;
     if (active == null) return;
     final version = ++_capabilityVersion;
@@ -306,20 +404,30 @@ class AppController extends ChangeNotifier {
       if (version != _capabilityVersion) return;
       availability = SourceAvailability.parse(data);
       player.cache.configure(data);
+      final discoveryChanged = !listEquals(discovery.sources, availableSources);
+      final discoveryLoaded =
+          discovery.page > 0 ||
+          discovery.playlists.isNotEmpty ||
+          discovery.loading;
+      discovery.sources = List.of(availableSources);
       if (availableSources.isEmpty) {
         discovery.reset();
-      } else if (!availableSources.contains(discovery.source)) {
-        final wasLoaded =
-            discovery.sorts.isNotEmpty ||
-            discovery.playlists.isNotEmpty ||
-            discovery.loading;
+      } else if (!discovery.aggregate &&
+          !availableSources.contains(discovery.source)) {
         discovery.reset();
-        discovery.source = availableSources.first;
-        if (wasLoaded) unawaited(discovery.load(active, categories: true));
+        discovery.aggregate = true;
+        if (discoveryLoaded && reloadResults) unawaited(discovery.load(active));
+      } else if (discovery.aggregate &&
+          discoveryChanged &&
+          discoveryLoaded &&
+          reloadResults) {
+        unawaited(discovery.load(active));
       }
-      if (availableSources.isNotEmpty && !availableSources.contains(source)) {
-        source = availableSources.first;
+      if (!availableSources.contains(source)) {
+        aggregate = true;
+        if (availableSources.isNotEmpty) source = availableSources.first;
       }
+      unawaited(_savePlatforms());
     } on ApiFailure catch (e) {
       if (version != _capabilityVersion) return;
       // An unavailable capability endpoint is not proof that a platform is disabled.
@@ -337,7 +445,7 @@ class AppController extends ChangeNotifier {
       if (version == _capabilityVersion) {
         checkingSources = false;
         notifyListeners();
-        if (keyword.isNotEmpty) unawaited(search(keyword));
+        if (reloadResults && keyword.isNotEmpty) unawaited(search(keyword));
       }
     }
   }
@@ -346,21 +454,25 @@ class AppController extends ChangeNotifier {
     if (source == value && !aggregate) return;
     aggregate = false;
     source = value;
+    final saved = _savePlatforms();
     if (keyword.isNotEmpty) {
       await search(keyword);
     } else {
       notifyListeners();
     }
+    await saved;
   }
 
   Future<void> selectAggregate() async {
     if (aggregate) return;
     aggregate = true;
+    final saved = _savePlatforms();
     if (keyword.isNotEmpty) {
       await search(keyword);
     } else {
       notifyListeners();
     }
+    await saved;
   }
 
   Future<void> search(String value, {bool more = false}) async {
@@ -369,6 +481,8 @@ class AppController extends ChangeNotifier {
     final version = ++_searchVersion;
     keyword = value.trim();
     if (!more) {
+      searchRevision++;
+      _searchWindow.clear();
       songs = [];
       page = 0;
       hasMore = false;
@@ -400,11 +514,21 @@ class AppController extends ChangeNotifier {
           final nextPage = (_pages[platform] ?? 0) + 1;
           final result = await api.search(active, keyword, platform, nextPage);
           if (version != _searchVersion) return;
+          if (!aggregate) {
+            _searchWindow.add(
+              nextPage,
+              result.songs,
+              total: result.total,
+              size: result.pageSize,
+              hasMore: result.hasMore,
+            );
+          }
           offlineMode = false;
           final bucket = _buckets.putIfAbsent(platform, () => []);
           final ids = bucket.map((s) => s.id).toSet();
           final fresh = result.songs.where((s) => ids.add(s.id)).toList();
           bucket.addAll(fresh);
+          if (!aggregate) _buckets[platform] = _searchWindow.all;
           _pages[platform] = nextPage;
           if (!result.hasMore || fresh.isEmpty) _more.remove(platform);
           sourceFailures.remove(platform);

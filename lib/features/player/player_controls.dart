@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../shared/app_modal.dart';
+
 import '../../app/theme.dart';
 import '../../shared/song_art.dart';
 import 'player_controller.dart';
@@ -107,29 +109,24 @@ class _ModePainter extends CustomPainter {
 }
 
 void showPlaybackMode(BuildContext context, PlayerController player) {
-  showModalBottomSheet<void>(
+  showAppSheet<void>(
     context: context,
+    title: '播放模式',
     showDragHandle: true,
     builder: (context) => SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const ListTile(
-              title: Text(
-                '播放模式',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
             for (final mode in PlaybackMode.values)
               Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.only(bottom: 4),
                 child: Material(
                   color: player.mode == mode
                       ? const Color(0xFFE4F4EC)
-                      : const Color(0xFFF5F8F6),
-                  borderRadius: BorderRadius.circular(20),
+                      : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
                   clipBehavior: Clip.antiAlias,
                   child: ListTile(
                     leading: PlaybackModeIcon(
@@ -167,35 +164,24 @@ String clockText(Duration value) =>
     '${value.inMinutes.toString().padLeft(2, '0')}:${(value.inSeconds % 60).toString().padLeft(2, '0')}';
 
 void showQueue(BuildContext context, PlayerController player) {
-  showModalBottomSheet<void>(
+  showAppSheet<void>(
     context: context,
     showDragHandle: true,
     isScrollControlled: true,
     builder: (context) => SafeArea(
       child: SizedBox(
-        height: MediaQuery.sizeOf(context).height * .6,
+        height: (90 + player.queue.length * 68.0).clamp(
+          200.0,
+          MediaQuery.sizeOf(context).height * .6,
+        ),
         child: ListenableBuilder(
           listenable: player,
           builder: (context, _) => Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-                child: Row(
-                  children: [
-                    const Text(
-                      '接下来播放',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      '${player.queue.length} 首',
-                      style: const TextStyle(color: lxMuted),
-                    ),
-                  ],
-                ),
+              SheetHeader(
+                title: '接下来播放',
+                subtitle: '${player.queue.length} 首',
+                closeLabel: '关闭',
               ),
               Expanded(
                 child: player.queue.isEmpty
@@ -205,6 +191,7 @@ void showQueue(BuildContext context, PlayerController player) {
                         itemBuilder: (context, i) {
                           final song = player.queue[i];
                           return ListTile(
+                            selected: i == player.index,
                             leading: SongArt(url: song.image, size: 44),
                             title: Text(
                               song.name,

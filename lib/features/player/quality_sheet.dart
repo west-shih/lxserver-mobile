@@ -1,39 +1,39 @@
 import 'package:flutter/material.dart';
 
+import '../../shared/app_modal.dart';
+
 import '../../app/theme.dart';
 import 'player_controller.dart';
 import 'quality.dart';
 
 void showQuality(BuildContext context, PlayerController player) {
   if (player.current == null) return;
-  showModalBottomSheet<void>(
+  showAppSheet<void>(
     context: context,
     showDragHandle: true,
     isScrollControlled: true,
     builder: (context) => SafeArea(
       child: SizedBox(
         key: const ValueKey('quality-sheet'),
-        height: MediaQuery.sizeOf(context).height * .68,
+        height:
+            (130 +
+                    player.knownQualityOptions.length * 58.0 +
+                    (player.unverifiedQualityOptions.isEmpty ? 0 : 60))
+                .clamp(220.0, MediaQuery.sizeOf(context).height * .68),
         child: ListenableBuilder(
           listenable: player,
           builder: (context, _) => Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                padding: EdgeInsets.zero,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      '音质',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+                    const SheetHeader(title: '音质', closeLabel: '关闭'),
                     if (player.changingQuality || player.resolving)
                       Padding(
-                        padding: const EdgeInsets.only(top: 10),
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
                         child: Row(
                           children: [
                             const SizedBox(
@@ -52,7 +52,7 @@ void showQuality(BuildContext context, PlayerController player) {
                     else if (player.qualityNotice != null ||
                         player.error != null)
                       Padding(
-                        padding: const EdgeInsets.only(top: 10),
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
                         child: Text(
                           player.qualityNotice ?? player.error!,
                           style: TextStyle(
@@ -126,6 +126,7 @@ void showQuality(BuildContext context, PlayerController player) {
 
 Widget _qualityTile(PlayerController player, AudioQuality quality) => ListTile(
   dense: true,
+  selected: player.reportedQuality == quality.id,
   title: Text(
     quality.label,
     style: TextStyle(
