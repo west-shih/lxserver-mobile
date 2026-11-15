@@ -46,7 +46,7 @@ MusicHome 使用三个导航入口，共享播放器；详情页只调用控制�
 PersonalCenterScreen 组织账号和本机存储入口；共享 showSongActions 为列表和播放页提供统一歌曲菜单，页面通过 AppController 发送操作，不重复实现下载/文件管理。
 SongMetadata 共用歌曲平台/最高标注音质/本机文件标签；PlayerController 管理播放模式与自动完成事件，nextQueueIndex 为纯策略。CommentsController 持有打开时歌曲快照、分类及分页，通过请求代际防止过期响应覆盖或销毁后通知；评论不改变当前播放状态。
 MusicHome 持有顶部搜索框；各列表页以单个 CustomScrollView 组织筛选和内容，筛选不固定占用列表高度。
-SongArt 通过 ArtworkImage 加载封面；独立图片客户端替换默认 User-Agent，不使用登录凭据，避免 Flutter NetworkImage 追加请求头导致 CDN 拒绝。
+SongArt 的网络及本机封面通过 ResizeImage 按显示尺寸和设备像素比限制解码大小；SongTile 将文件状态订阅限制在元数据区域，避免通知重建封面和整行。音乐库加载/排序提示固定 2px 占位，避免保存时改变列表位置。SongArt 通过 ArtworkImage 加载封面；独立图片客户端替换默认 User-Agent，不使用登录凭据，避免 Flutter NetworkImage 追加请求头导致 CDN 拒绝。
 SessionStore 仅持久化服务器和 Token 会话，不保存密码。音频 URL 请求不附带用户 Token。
 后台播放服务、本地数据库、实时同步方案尚未选定。个人歌单重命名/删除/关联歌单刷新由 LibraryController 重读快照后调用 LxApi 全量写入，UI 仅确认和发送操作；接口无并发冲突检测。歌词使用独立 LRC 解析模型；异步响应与当前曲目绑定，切歌/退出使旧请求失效。
 后续随功能扩大拆分 AppController，避免把所有业务持续集中其中。
@@ -81,4 +81,4 @@ LibraryController 在完整分页后聚合歌曲/封面；收藏重读快照查�
 
 CollectionScreen 用单个 CustomScrollView 组织可滚动头部、SliverPersistentHeader 吸附工具栏和歌曲；搜索在导航按需展开，PopScope 优先退出搜索/选择。搜索/分页只派生显示条目，不改变已加载播放队列。多选状态归详情页所有，PlayerController.enqueueNext 将选择歌曲去重放在当前歌曲之后且不自动播放；批量下载经 LocalMediaController，页面不管理文件。分页模式及数量由 AppController/SessionStore 保存。ScrollingTitle 只对超宽标题运行动画并遵循系统减少动态效果，保留完整无障碍标签。
 
-私人歌曲编辑通过 LibraryController.editSongs/_editSnapshot 保存，歌单混排通过 reorderCollections 协调歌单数据与账号显示设置，两者共用控制器写入锁和会话版本；library_edit 是纯快照变换，保留未知字段并检查排序基线。CollectionScreen 只持有选择和排序草稿，调用控制器保存，不直接请求 HTTP。确认删除可合并待保存顺序，成功回查失败不会重发写入。编辑工具栏由 CollectionEditActions 和 PlaylistEditGlyph 提供；原平台歌单没有对应写接口，显示只读边界。LibraryScreen 的 SliverReorderableList 包含全部歌单，系统项可移动但不可删除/改名；松手后暂显新顺序，控制器先 GET 最新歌单/账号设置，检查完整显示顺序，仅在自建项相对顺序变化时 POST 歌单，再 POST 保留其他字段的 favoriteSidebarOrder。网页隐藏入口保持原位置，新增歌单追加展示；读取设置失败不阻止浏览，但保存时必须有合法设置。双写无事务，部分失败展示已确认状态和明确提示，不自动回滚或重试写入。分类复用 ChoiceChip；MusicBadge 使用均匀 leading 和统一 strut，改善中英字体混排的垂直对齐。
+私人歌曲编辑通过 LibraryController.editSongs/_editSnapshot 保存，歌单混排通过 reorderCollections 协调歌单数据与账号显示设置，两者共用控制器写入锁和会话版本；library_edit 是纯快照变换，保留未知字段并检查排序基线。CollectionScreen 只持有选择和排序草稿，调用控制器保存，不直接请求 HTTP。确认删除可合并待保存顺序，成功回查失败不会重发写入。编辑工具栏由 CollectionEditActions 和 PlaylistEditGlyph 提供；原平台歌单没有对应写接口，显示只读边界。LibraryScreen 的 SliverReorderableList 包含全部歌单，系统项可移动但不可删除/改名；松手后暂显新顺序，控制器先 GET 最新歌单/账号设置，检查完整显示顺序，仅在自建项相对顺序变化时 POST 歌单，再 POST 保留其他字段的 favoriteSidebarOrder。网页隐藏入口保持原位置，新增歌单追加展示；读取设置失败不阻止浏览，但保存时必须有合法设置。双写无事务，部分失败展示已确认状态和明确提示，不自动回滚或重试写入。分类复用 ChoiceChip；MusicBadge 保留原英文 height=1.3 与自然字体度量，不强制共用 strut/leading；含中文标签仅在自然基线上做 0.5 逻辑像素的向上视觉微调（随文字缩放），避免影响英文。真机视觉效果仍需用户复核。

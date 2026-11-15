@@ -23,6 +23,7 @@ class SongArt extends StatelessWidget {
   final double size;
   @override
   Widget build(BuildContext context) {
+    final pixels = (size * MediaQuery.devicePixelRatioOf(context)).ceil();
     final placeholder = Container(
       width: size,
       height: size,
@@ -39,7 +40,11 @@ class SongArt extends StatelessWidget {
       borderRadius: BorderRadius.circular(size * .2),
       child: localPath != null
           ? Image(
-              image: FileImage(File(localPath!)),
+              image: ResizeImage.resizeIfNeeded(
+                pixels,
+                pixels,
+                FileImage(File(localPath!)),
+              ),
               width: size,
               height: size,
               fit: BoxFit.cover,
@@ -48,7 +53,11 @@ class SongArt extends StatelessWidget {
           : url.isEmpty
           ? placeholder
           : Image(
-              image: ArtworkImage(url, headers: artworkHeaders(url)),
+              image: ResizeImage.resizeIfNeeded(
+                pixels,
+                pixels,
+                ArtworkImage(url, headers: artworkHeaders(url)),
+              ),
               width: size,
               height: size,
               fit: BoxFit.cover,

@@ -31,53 +31,54 @@ class SongTile extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([
-      controller.serverFiles,
-      controller.localMedia,
-    ]),
-    builder: (context, _) => ListTile(
-      dense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      leading: onSelect == null
-          ? SongArt(url: song.image, size: 48)
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Checkbox(
-                  value: selected ?? false,
-                  shape: const CircleBorder(),
-                  visualDensity: VisualDensity.compact,
-                  onChanged: selectionEnabled ? (_) => onSelect!() : null,
-                ),
-                const SizedBox(width: 6),
-                SongArt(url: song.image, size: 44),
-              ],
-            ),
-      title: Text(
-        song.name,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-      ),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 5),
-        child: SongMetadata(controller: controller, song: song),
-      ),
-      onTap: onSelect == null
-          ? _play
-          : selectionEnabled
-          ? onSelect
-          : null,
-      selected: selected ?? false,
-      trailing: onSelect != null
-          ? reorderHandle ?? const SizedBox(width: 24)
-          : IconButton(
-              tooltip: '${song.name}的更多操作',
-              icon: const Icon(Icons.more_vert_rounded, color: lxMuted),
-              onPressed: () =>
-                  showSongActions(context, controller, song, queue: queue),
-            ),
+  Widget build(BuildContext context) => ListTile(
+    dense: true,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+    leading: onSelect == null
+        ? SongArt(url: song.image, size: 48)
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Checkbox(
+                value: selected ?? false,
+                shape: const CircleBorder(),
+                visualDensity: VisualDensity.compact,
+                onChanged: selectionEnabled ? (_) => onSelect!() : null,
+              ),
+              const SizedBox(width: 6),
+              SongArt(url: song.image, size: 44),
+            ],
+          ),
+    title: Text(
+      song.name,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
     ),
+    subtitle: Padding(
+      padding: const EdgeInsets.only(top: 5),
+      child: ListenableBuilder(
+        listenable: Listenable.merge([
+          controller.serverFiles,
+          controller.localMedia,
+        ]),
+        builder: (context, _) =>
+            SongMetadata(controller: controller, song: song),
+      ),
+    ),
+    onTap: onSelect == null
+        ? _play
+        : selectionEnabled
+        ? onSelect
+        : null,
+    selected: selected ?? false,
+    trailing: onSelect != null
+        ? reorderHandle ?? const SizedBox(width: 24)
+        : IconButton(
+            tooltip: '${song.name}的更多操作',
+            icon: const Icon(Icons.more_vert_rounded, color: lxMuted),
+            onPressed: () =>
+                showSongActions(context, controller, song, queue: queue),
+          ),
   );
 }

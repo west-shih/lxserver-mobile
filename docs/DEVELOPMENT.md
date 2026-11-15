@@ -32,6 +32,10 @@ flutter analyze
 flutter test
 ```
 
+## 滚动性能验证
+
+高刷流畅度使用 `flutter run --profile -d <device-id>` 在真机验收；debug 构建的 JIT、断言和调试开销会影响帧耗时，不能用作性能结论。120Hz 单帧预算约 8.33ms，采集 Flutter FrameTiming 的构建、栅格耗时及帧间隔，区分首次显示、预热后快速滚动和拖拽；Android gfxinfo 不完整统计 Flutter Surface 帧，不能直接作为掉帧率。覆盖安装保留应用数据，不卸载或清除真实会话。
+
 ## 登录和联调
 
 - 登录页填写 LXServer 基础地址（支持反向代理路径前缀），不填网页的 /music 或 /admin 页面路径。

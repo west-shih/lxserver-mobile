@@ -212,10 +212,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 ),
               ),
             ),
-            if (library.loading || _savingOrder)
-              const SliverToBoxAdapter(
-                child: LinearProgressIndicator(minHeight: 2),
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: 2,
+                child: library.loading || _savingOrder
+                    ? const LinearProgressIndicator(minHeight: 2)
+                    : null,
               ),
+            ),
             if (error != null)
               SliverToBoxAdapter(
                 child: Padding(
