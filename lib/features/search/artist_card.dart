@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/controller.dart';
 import '../../app/theme.dart';
 import '../../shared/song_art.dart';
+import '../../shared/card_favorite_button.dart';
 import 'entity_widgets.dart';
 import 'music_entity.dart';
 
@@ -28,7 +29,7 @@ class ArtistCard extends StatelessWidget {
             shadowColor: const Color(0x15172b28),
             clipBehavior: Clip.antiAlias,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(22),
+              borderRadius: BorderRadius.circular(12),
               side: const BorderSide(color: Color(0xffe6eeea)),
             ),
             child: Ink(
@@ -150,35 +151,14 @@ class ArtistCard extends StatelessWidget {
                     Positioned(
                       top: 10,
                       right: 10,
-                      child: IconButton(
+                      child: CardFavoriteButton(
                         tooltip: saved
                             ? '取消收藏歌手：${entity.name}'
                             : '收藏歌手：${entity.name}',
-                        isSelected: saved,
+                        saved: saved,
                         onPressed: controller.library.mutating
                             ? null
                             : () => toggleEntity(context, controller, entity),
-                        alignment: Alignment.topRight,
-                        padding: EdgeInsets.zero,
-                        style: IconButton.styleFrom(
-                          fixedSize: const Size(40, 40),
-                          minimumSize: const Size(40, 40),
-                        ),
-                        icon: Container(
-                          width: 30,
-                          height: 30,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Color(0x66172922),
-                          ),
-                          child: Icon(
-                            saved
-                                ? Icons.favorite_rounded
-                                : Icons.favorite_border_rounded,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                        ),
                       ),
                     ),
                   ],

@@ -106,6 +106,7 @@ void main() {
     (tester) async {
       var saved = <Map<String, dynamic>>[];
       var albumRequests = 0;
+      var writes = 0;
       final c = AppController(
         api: LxApi(
           client: MockClient((r) async {
@@ -115,6 +116,7 @@ void main() {
             }
             expect(r.url.path, '/api/user/library/albums');
             if (r.method == 'POST') {
+              writes++;
               saved = (jsonDecode(r.body) as List).cast<Map<String, dynamic>>();
               return response({'success': true});
             }
@@ -146,6 +148,11 @@ void main() {
       await tester.tap(find.byTooltip('收藏专辑：专辑名称'));
       await tester.pumpAndSettle();
       expect(find.byTooltip('取消收藏专辑：专辑名称'), findsOneWidget);
+      expect(
+        tester.widget<Icon>(find.byIcon(Icons.favorite_rounded)).color,
+        const Color(0xffef4444),
+      );
+      expect(writes, 1);
       expect(albumRequests, 0);
       expect(find.byIcon(Icons.play_arrow_rounded), findsNothing);
       expect(find.byType(EntityDetailScreen), findsNothing);
@@ -158,6 +165,32 @@ void main() {
         cardBottom - tester.getBottomLeft(find.text('歌手')).dy,
         lessThan(18),
       );
+      await tester.tap(find.byTooltip('取消收藏专辑：专辑名称'));
+      await tester.pumpAndSettle();
+      expect(find.text('取消收藏专辑？'), findsOneWidget);
+      expect(writes, 1);
+      expect(c.library.albums, hasLength(1));
+      await tester.tap(find.text('保留收藏'));
+      await tester.pumpAndSettle();
+      expect(writes, 1);
+      expect(c.library.albums, hasLength(1));
+      await tester.tap(find.byTooltip('取消收藏专辑：专辑名称'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('确认取消'));
+      await tester.pumpAndSettle();
+      expect(writes, 2);
+      expect(c.library.albums, isEmpty);
+      await tester.tap(find.byTooltip('收藏专辑：专辑名称'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('取消收藏专辑：专辑名称'));
+      await tester.pumpAndSettle();
+      c.session = null;
+      await tester.tap(find.text('确认取消'));
+      await tester.pumpAndSettle();
+      expect(
+        writes,
+        3,
+      ); // The final confirmation cannot write into a changed session.
       await tester.pumpWidget(const SizedBox());
       c.dispose();
     },

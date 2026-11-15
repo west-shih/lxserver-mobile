@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/controller.dart';
 import '../../core/lx_api.dart';
 import '../../shared/music_badge.dart';
+import '../../shared/app_modal.dart';
 import 'music_entity.dart';
 import 'entity_detail_screen.dart';
 import 'album_card.dart';
@@ -25,6 +26,27 @@ Future<void> toggleEntity(
   final session = c.session;
   if (session == null) return;
   final desired = !c.library.isEntityFavorite(entity.favorite, entity.artist);
+  if (!desired) {
+    final confirmed = await showAppDialog<bool>(
+      context: context,
+      dangerous: true,
+      builder: (dialog) => AlertDialog(
+        title: Text(entity.artist ? '取消收藏歌手？' : '取消收藏专辑？'),
+        content: Text('确定取消收藏「${entity.name}」吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, false),
+            child: const Text('保留收藏'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialog, true),
+            child: const Text('确认取消'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted || c.session != session) return;
+  }
   try {
     await c.library.setEntityFavorite(
       session,

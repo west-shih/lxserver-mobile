@@ -435,7 +435,7 @@ class _EntityDetailScreenState extends State<EntityDetailScreen> {
                   saved
                       ? Icons.favorite_rounded
                       : Icons.favorite_border_rounded,
-                  color: saved ? const Color(0xffed5277) : lxMuted,
+                  color: saved ? const Color(0xffef4444) : lxMuted,
                 ),
               ),
               const SizedBox(width: 8),
