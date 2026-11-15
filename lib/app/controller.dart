@@ -43,7 +43,138 @@ class AppController extends ChangeNotifier {
     discovery = DiscoveryController(this.api, expire);
     entitySearch = EntitySearchController(this.api, expire);
     entitySearch.addListener(notifyListeners);
+    addListener(_scheduleBrowseState);
+    discovery.addListener(_scheduleBrowseState);
   }
+  String songDraft = '', playlistDraft = '';
+  int homeTab = 0;
+  Timer? _browseTimer;
+  Future<void> _browseWrites = Future.value();
+  bool _resumingBrowse = false;
+  bool get resumingBrowse => _resumingBrowse;
+  void _scheduleBrowseState() {
+    if (restoring || _resumingBrowse || session == null) return;
+    _browseTimer?.cancel();
+    _browseTimer = Timer(const Duration(milliseconds: 250), flushBrowseState);
+  }
+
+  void updateBrowseDrafts(String song, String playlist) {
+    songDraft = song;
+    playlistDraft = playlist;
+    _scheduleBrowseState();
+  }
+
+  Future<void> flushBrowseState() {
+    _browseTimer?.cancel();
+    final active = session;
+    if (active == null || restoring || _resumingBrowse) return _browseWrites;
+    final value = <String, dynamic>{
+      'server': active.server.toString(),
+      'username': active.username,
+      'songDraft': songDraft,
+      'playlistDraft': playlistDraft,
+      'tab': homeTab,
+      'keyword': keyword,
+      'kind': entitySearch.kind.name,
+      'entityKeyword': entitySearch.keyword,
+      'entitySource': entitySearch.source.name,
+      'playlistKeyword': discovery.keyword,
+      'tag': discovery.tag,
+      'tagName': discovery.tagName,
+      'sort': discovery.sort,
+    };
+    return _browseWrites = _browseWrites
+        .then((_) => store.saveBrowseState(value))
+        .catchError((Object _) {});
+  }
+
+  Future<void> _restoreBrowseState() async {
+    final active = session;
+    if (active == null) return;
+    final value = await store.readBrowseState();
+    if (session != active ||
+        value['server'] != active.server.toString() ||
+        value['username'] != active.username) {
+      return;
+    }
+    String text(String key) => value[key] is String ? value[key] as String : '';
+    songDraft = text('songDraft');
+    playlistDraft = text('playlistDraft');
+    homeTab = value['tab'] is int ? (value['tab'] as int).clamp(0, 2) : 0;
+    keyword = text('keyword');
+    entitySearch.kind =
+        SearchKind.values.where((k) => k.name == value['kind']).firstOrNull ??
+        SearchKind.song;
+    entitySearch.keyword = text('entityKeyword');
+    entitySearch.source =
+        entitySources
+            .where((s) => s.name == value['entitySource'])
+            .firstOrNull ??
+        entitySources.firstOrNull ??
+        MusicSource.wy;
+    discovery.keyword = text('playlistKeyword');
+    discovery.tag = text('tag');
+    discovery.tagName = text('tagName').isEmpty ? '全部分类' : text('tagName');
+    discovery.sort = text('sort');
+  }
+
+  Future<void> _resumeBrowseResults() async {
+    _resumingBrowse = true;
+    final active = session;
+    try {
+      await refreshSources(reloadResults: false);
+      if (active == null || session != active) return;
+      if (entitySearch.kind == SearchKind.song && keyword.isNotEmpty) {
+        await search(keyword);
+      } else if (entitySearch.kind != SearchKind.song &&
+          entitySearch.keyword.isNotEmpty &&
+          entitySources.isNotEmpty) {
+        await entitySearch.search(active, entitySearch.keyword);
+      }
+      if (session == active &&
+          (homeTab == 1 ||
+              discovery.keyword.isNotEmpty ||
+              discovery.tag.isNotEmpty)) {
+        discovery.sources = List.of(availableSources);
+        await discovery.load(active, categories: !discovery.aggregate);
+      }
+    } finally {
+      _resumingBrowse = false;
+      _scheduleBrowseState();
+    }
+  }
+
+  final Map<String, Future<String>> _artistPortraits = {};
+  Future<void> _portraitQueue = Future.value();
+  Future<String> artistPortrait(MusicEntity entity) {
+    final active = session;
+    if (active == null || !entity.artist || entity.source != MusicSource.wy) {
+      return Future.value(entity.image);
+    }
+    if (!_artistPortraits.containsKey(entity.key) &&
+        _artistPortraits.length >= 100) {
+      _artistPortraits.remove(_artistPortraits.keys.first);
+    }
+    return _artistPortraits.putIfAbsent(entity.key, () {
+      final result = _portraitQueue.then((_) async {
+        if (session != active) return entity.image;
+        try {
+          final data = await api.read(
+            active,
+            '/api/music/artistDetail',
+            query: {'source': entity.source.name, 'id': entity.id},
+          );
+          if (data is Map<String, dynamic>) return entity.merge(data).image;
+        } catch (_) {
+          /* Optional enrichment keeps the list image on failure. */
+        }
+        return entity.image;
+      });
+      _portraitQueue = result.then((_) {});
+      return result;
+    });
+  }
+
   final LxApi api;
   final store = SessionStore();
   bool pagedCollections = false;
@@ -315,6 +446,7 @@ class AppController extends ChangeNotifier {
       authError = '无法恢复登录，请重新登录';
     }
     if (session != null) {
+      await _restoreBrowseState();
       await localMedia.activate(session!);
       final state = await playbackResume.read(session!);
       if (state != null) player.restorePlayback(session!, state);
@@ -322,7 +454,7 @@ class AppController extends ChangeNotifier {
     restoring = false;
     notifyListeners();
     if (session != null && !offlineMode) {
-      unawaited(refreshSources());
+      unawaited(_resumeBrowseResults());
       unawaited(refreshServerFiles());
     }
   }
@@ -367,6 +499,10 @@ class AppController extends ChangeNotifier {
   Future<void> logout() => _endSession();
 
   Future<void> _endSession({bool expired = false}) async {
+    _browseTimer?.cancel();
+    songDraft = playlistDraft = '';
+    homeTab = 0;
+    _artistPortraits.clear();
     final old = session;
     session = null;
     offlineMode = false;
@@ -387,6 +523,8 @@ class AppController extends ChangeNotifier {
       await playbackResume.clear();
       await localMedia.deactivate();
       await store.clear();
+      await _browseWrites;
+      await store.clearBrowseState();
     } catch (_) {
       authError = '本地登录信息清理失败，请重新启动应用后检查';
     } finally {
@@ -619,6 +757,9 @@ class AppController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _browseTimer?.cancel();
+    removeListener(_scheduleBrowseState);
+    discovery.removeListener(_scheduleBrowseState);
     ++_capabilityVersion;
     ++_searchVersion;
     _rememberPlayback();

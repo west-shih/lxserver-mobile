@@ -62,14 +62,19 @@ class ArtistCard extends StatelessWidget {
                                     : const Color(0xffdbe9e2),
                               ),
                               child: ClipOval(
-                                child: SongArt(
-                                  url: entity.image,
-                                  size: size - 6,
-                                  borderRadius: 0,
-                                  placeholderIcon: Icons.person_outline_rounded,
-                                  placeholderColor: Colors.white,
-                                  placeholderBackground: const Color(
-                                    0xffe2e6e4,
+                                child: FutureBuilder<String>(
+                                  key: ValueKey(entity.key),
+                                  future: controller.artistPortrait(entity),
+                                  builder: (context, snapshot) => SongArt(
+                                    url: snapshot.data ?? entity.image,
+                                    size: size - 6,
+                                    borderRadius: 0,
+                                    placeholderIcon:
+                                        Icons.person_outline_rounded,
+                                    placeholderColor: Colors.white,
+                                    placeholderBackground: const Color(
+                                      0xffe2e6e4,
+                                    ),
                                   ),
                                 ),
                               ),

@@ -25,6 +25,25 @@ class _MusicHomeState extends State<MusicHome> {
   bool _loadedLibrary = false;
   bool _loadedDiscovery = false;
   @override
+  void initState() {
+    super.initState();
+    final c = widget.controller;
+    _tab = c.homeTab;
+    _songQuery.text = c.songDraft;
+    _playlistQuery.text = c.playlistDraft;
+    _songQuery.addListener(_rememberDrafts);
+    _playlistQuery.addListener(_rememberDrafts);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _select(_tab);
+    });
+  }
+
+  void _rememberDrafts() => widget.controller.updateBrowseDrafts(
+    _songQuery.text,
+    _playlistQuery.text,
+  );
+
+  @override
   void dispose() {
     _songQuery.dispose();
     _playlistQuery.dispose();
@@ -51,6 +70,8 @@ class _MusicHomeState extends State<MusicHome> {
     final session = c.session;
     if (session == null) return;
     setState(() => _tab = tab);
+    c.homeTab = tab;
+    c.flushBrowseState();
     if (tab == 2 && !_loadedLibrary) {
       _loadedLibrary = true;
       if (!c.offlineMode) c.refreshLibrary();
@@ -58,7 +79,11 @@ class _MusicHomeState extends State<MusicHome> {
     if (tab == 1 && !_loadedDiscovery && c.availableSources.isNotEmpty) {
       _loadedDiscovery = true;
       c.discovery.sources = List.of(c.availableSources);
-      c.discovery.load(session, categories: !c.discovery.aggregate);
+      if (c.discovery.playlists.isEmpty &&
+          !c.discovery.loading &&
+          !c.resumingBrowse) {
+        c.discovery.load(session, categories: !c.discovery.aggregate);
+      }
     }
   }
 
@@ -257,10 +282,7 @@ class _MusicHomeState extends State<MusicHome> {
             MiniPlayer(
               player: c.player,
               controller: c,
-              compact:
-                  c.pagedCollections &&
-                  ((_tab == 0 && !c.aggregate) ||
-                      (_tab == 1 && !c.discovery.aggregate)),
+              compact: c.pagedCollections,
             ),
           ],
         ),

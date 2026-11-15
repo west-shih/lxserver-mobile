@@ -2,6 +2,8 @@
 
 ## 歌手与专辑（R028，v2.2.0）
 
+头像证据：固定基线 `wy/extendSearch.js:handleSingerResult` 返回 `picUrl`；`wy/extendDetail.js:getArtistDetail` 返回 `avatar`，依次优先 `data.user.avatarUrl`、`artist.avatar`、`artist.cover`、`artist.picUrl`。两者不保证同一构图，客户端均为居中 cover 裁切。网易歌手卡片通过既有 `GET /api/music/artistDetail?source=wy&id=…` 补取详情头像，会话内串行去重、最多缓存 100 项，失败保留原图；不写回收藏。只读基线脚本已核对 v2.2.0 / 13865b82b19fe51219e3e21948c104a50e6fcebc。SM S9180 profile 覆盖安装后已观察到目标卡片与详情构图一致，不据此扩大其他接口或部署版本支持范围。
+
 基线仍为 `upstream-baseline.json` 的 v2.2.0 / `13865b82b19fe51219e3e21948c104a50e6fcebc`，只读脚本校验通过。源码证据：`src/server/server.ts` 搜索/artistDetail/artistSongs/artistAlbums/albumSongs 与 user/library 路由，`src/modules/utils/musicSdk/{wy,tx}/extendSearch.js`、`extendDetail.js`、`tx/singer.js`，网页 `public/music/app.js` 的 handleSearchTypeChange、toggleArtistFavorite、toggleAlbumFavorite。
 
 - `GET /api/music/search?name=...&source=wy|tx&type=singer|album&page=1&limit=20`：对象 list/total/pageSize。只有 wy/tx 注入 extendSearch/extendDetail；网页同样限制。解析源 supportedSources 只表示账号音频解析平台，客户端与上述能力取交集；状态未知保留两平台并提示，不增加虚构能力接口。歌手/专辑采用单平台，不发送 source=all。

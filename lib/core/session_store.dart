@@ -5,6 +5,21 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'lx_api.dart';
 
 class SessionStore {
+  Future<Map<String, dynamic>> readBrowseState() async {
+    try {
+      final value = jsonDecode(
+        await _storage.read(key: 'lx.browseState') ?? '{}',
+      );
+      return value is Map<String, dynamic> ? value : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<void> saveBrowseState(Map<String, dynamic> value) =>
+      _storage.write(key: 'lx.browseState', value: jsonEncode(value));
+  Future<void> clearBrowseState() => _storage.delete(key: 'lx.browseState');
+
   Future<Map<String, dynamic>> readPlatformSelection() async {
     try {
       final value = jsonDecode(

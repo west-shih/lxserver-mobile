@@ -49,6 +49,7 @@ class _LxAppState extends State<LxApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) {
       unawaited(controller.flushPlayback());
+      unawaited(controller.flushBrowseState());
     }
   }
 

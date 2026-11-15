@@ -154,7 +154,9 @@ class DiscoveryController extends ChangeNotifier {
         sorts = (data['sortList'] as List? ?? [])
             .whereType<Map<String, dynamic>>()
             .toList();
-        sort = sorts.isNotEmpty ? '${sorts.first['id']}' : 'hot';
+        if (!sorts.any((item) => '${item['id']}' == sort)) {
+          sort = sorts.isNotEmpty ? '${sorts.first['id']}' : 'hot';
+        }
       }
       final requestedPage = page + 1;
       final data = await api.read(
