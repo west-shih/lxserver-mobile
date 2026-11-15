@@ -85,7 +85,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Widget _collectionTile(MusicCollection collection, {int? dragIndex}) =>
       Material(
         key: ValueKey('library-collection-${collection.id}'),
-        color: Colors.white,
+        color: lxCanvas,
         child: ListTile(
           dense: true,
           contentPadding: const EdgeInsets.symmetric(
@@ -193,22 +193,25 @@ class _LibraryScreenState extends State<LibraryScreen> {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                child: Row(
-                  children: [
-                    for (final (index, label) in ['歌单', '歌手', '专辑'].indexed)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: ChoiceChip(
-                          label: Text(label),
-                          selected: _tab == index,
-                          showCheckmark: false,
-                          visualDensity: VisualDensity.compact,
-                          onSelected: _busy
-                              ? null
-                              : (_) => setState(() => _tab = index),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 48),
+                  child: Row(
+                    children: [
+                      for (final (index, label) in ['歌单', '歌手', '专辑'].indexed)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text(label),
+                            selected: _tab == index,
+                            showCheckmark: false,
+                            visualDensity: VisualDensity.compact,
+                            onSelected: _busy
+                                ? null
+                                : (_) => setState(() => _tab = index),
+                          ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

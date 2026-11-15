@@ -68,6 +68,7 @@ class _MusicHomeState extends State<MusicHome> {
   @override
   Widget build(BuildContext context) {
     final c = widget.controller;
+    final searchHeight = 40 * MediaQuery.textScalerOf(context).scale(14) / 14;
     return Scaffold(
       body: SafeArea(
         bottom: false,
@@ -75,93 +76,107 @@ class _MusicHomeState extends State<MusicHome> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _tab == 2
-                        ? const Text(
-                            '我的音乐',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          )
-                        : SizedBox(
-                            height: 44,
-                            child: TextField(
-                              key: ValueKey('top-search-$_tab'),
-                              controller: _tab == 0
-                                  ? _songQuery
-                                  : _playlistQuery,
-                              textInputAction: TextInputAction.search,
-                              onSubmitted: _search,
-                              decoration: InputDecoration(
-                                hintText: _tab == 0 ? '搜索音乐' : '搜索歌单',
-                                isDense: true,
-                                hintStyle: const TextStyle(
-                                  fontSize: 14,
-                                  color: lxMuted,
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 10,
-                                ),
-                                prefixIcon: const Icon(
-                                  Icons.search_rounded,
-                                  size: 20,
-                                ),
-                                suffixIcon: IconButton(
-                                  tooltip: '搜索',
-                                  onPressed: () => _search(
-                                    _tab == 0
-                                        ? _songQuery.text
-                                        : _playlistQuery.text,
+              child: SizedBox(
+                height: searchHeight + 8,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _tab == 2
+                          ? const Text(
+                              '我的收藏',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            )
+                          : SizedBox(
+                              height: searchHeight,
+                              child: TextField(
+                                key: ValueKey('top-search-$_tab'),
+                                controller: _tab == 0
+                                    ? _songQuery
+                                    : _playlistQuery,
+                                style: const TextStyle(fontSize: 14),
+                                textAlignVertical: TextAlignVertical.center,
+                                textInputAction: TextInputAction.search,
+                                onSubmitted: _search,
+                                decoration: InputDecoration(
+                                  hintText: _tab == 0 ? '搜索音乐' : '搜索歌单',
+                                  isDense: true,
+                                  hintStyle: const TextStyle(
+                                    fontSize: 14,
+                                    color: lxMuted,
                                   ),
-                                  icon: const Icon(
-                                    Icons.arrow_forward_rounded,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 8,
+                                  ),
+                                  prefixIcon: const Icon(
+                                    Icons.search_rounded,
                                     size: 20,
                                   ),
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(24),
-                                  borderSide: BorderSide.none,
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(24),
-                                  borderSide: BorderSide.none,
+                                  prefixIconConstraints: const BoxConstraints(
+                                    minWidth: 40,
+                                    minHeight: 40,
+                                  ),
+                                  suffixIconConstraints:
+                                      const BoxConstraints.tightFor(
+                                        width: 40,
+                                        height: 40,
+                                      ),
+                                  suffixIcon: IconButton(
+                                    tooltip: '搜索',
+                                    onPressed: () => _search(
+                                      _tab == 0
+                                          ? _songQuery.text
+                                          : _playlistQuery.text,
+                                    ),
+                                    icon: const Icon(
+                                      Icons.arrow_forward_rounded,
+                                      size: 20,
+                                    ),
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(24),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(24),
+                                    borderSide: BorderSide.none,
+                                  ),
                                 ),
                               ),
                             ),
+                    ),
+                    if (_tab == 2)
+                      IconButton(
+                        tooltip: '本机下载',
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (_) => DownloadsScreen(controller: c),
                           ),
-                  ),
-                  if (_tab == 2)
+                        ),
+                        icon: const Icon(Icons.downloading_rounded, size: 23),
+                      ),
+                    const SizedBox(width: 6),
                     IconButton(
-                      tooltip: '本机下载',
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute<void>(
-                          builder: (_) => DownloadsScreen(controller: c),
-                        ),
-                      ),
-                      icon: const Icon(Icons.downloading_rounded, size: 23),
-                    ),
-                  const SizedBox(width: 6),
-                  IconButton(
-                    tooltip: '个人中心',
-                    onPressed: _account,
-                    icon: CircleAvatar(
-                      radius: 16,
-                      backgroundColor: const Color(0xFFE0F3E9),
-                      child: Text(
-                        c.session!.username.characters.first.toUpperCase(),
-                        style: const TextStyle(
-                          color: lxGreen,
-                          fontWeight: FontWeight.bold,
+                      tooltip: '个人中心',
+                      onPressed: _account,
+                      icon: CircleAvatar(
+                        radius: 16,
+                        backgroundColor: const Color(0xFFE0F3E9),
+                        child: Text(
+                          c.session!.username.characters.first.toUpperCase(),
+                          style: const TextStyle(
+                            color: lxGreen,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
             Expanded(

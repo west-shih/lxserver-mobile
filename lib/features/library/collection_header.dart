@@ -23,12 +23,13 @@ class CollectionHeader extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     decoration: const BoxDecoration(
       gradient: LinearGradient(
-        colors: [Color(0xFFECF8F2), Color(0xFFF6FAF8)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
+        colors: [lxCanvas, Color(0xFFFBFDFC), Colors.white],
+        stops: [0, .45, 1],
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
       ),
     ),
-    padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
+    padding: const EdgeInsets.fromLTRB(18, 10, 18, 8),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -95,7 +96,7 @@ class CollectionHeader extends StatelessWidget {
         ),
         if (metadata.playCount.isNotEmpty || metadata.date.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.only(top: 12),
+            padding: const EdgeInsets.only(top: 10),
             child: Wrap(
               spacing: 16,
               runSpacing: 6,
@@ -112,7 +113,7 @@ class CollectionHeader extends StatelessWidget {
           ),
         if (metadata.description.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.only(top: 10),
+            padding: const EdgeInsets.only(top: 8),
             child: InkWell(
               onTap: () => showModalBottomSheet<void>(
                 context: context,
