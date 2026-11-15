@@ -89,6 +89,8 @@ class PlayerController extends ChangeNotifier {
   }
 
   AudioPlayer? _audio;
+  ProcessingState get processingState =>
+      _audio?.processingState ?? ProcessingState.idle;
   final List<StreamSubscription<dynamic>> _subscriptions = [];
   final List<Song> _queue = [];
   List<Song> get queue => List.unmodifiable(_queue);

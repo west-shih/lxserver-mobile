@@ -214,3 +214,7 @@
 基线 `src/modules/list/listDataManage.ts` 的 init/导入逻辑使用 `defaultList/loveList/userList` 并映射原生系统 ID。`public/app.js` 将 default 显示为“试听列表”，`public/music/js/library/songlist_manager.js` 单曲点击路径标明加入默认列表；它不是手机端新建的个人歌单。原生协议允许编辑其歌曲，客户端仅从明确“收藏到歌单”的目标选择中排除 default，保留收藏页及排序中的系统项，避免改动现有同步数据。单曲与批量收藏共用目标选择和 LibraryController.editSongs，按最新快照去重并保留无关字段；不写入原平台歌单。song_menu_metadata_test 为 Mock 验证，真实部署写入待验收。
 
 公共列表卡片仅显示已解析 `time`，与详情共用 CollectionMetadata；日期保持平台原义，不将其统一宣称为创建日，缺失不补造。歌曲菜单评论复用同一 `/api/music/comment` 原始歌曲身份请求，不需先播放。
+
+## 系统媒体会话（客户端能力）
+
+固定基线 v2.2.0 / 13865b82 的 public/music/app.js 已核对 mediaSession 的 play/pause/previoustrack/nexttrack/seekto 与 updateMediaSessionMetadata。手机端通过 audio_service 发布本机系统会话，操作委派 PlayerController，不新增 LXServer 路径、鉴权或响应字段；本次不扩大服务端兼容范围。实现与运行验收边界见 PLAYBACK_ENGINE.md。

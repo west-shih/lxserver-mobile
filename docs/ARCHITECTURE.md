@@ -48,7 +48,7 @@ SongMetadata 共用歌曲平台/最高标注音质/本机文件标签；PlayerCo
 MusicHome 持有顶部搜索框；各列表页以单个 CustomScrollView 组织筛选和内容，筛选不固定占用列表高度。
 SongArt 的网络及本机封面通过 ResizeImage 按显示尺寸和设备像素比限制解码大小；SongTile 将文件状态订阅限制在元数据区域，避免通知重建封面和整行。音乐库加载/排序提示固定 2px 占位，避免保存时改变列表位置。SongArt 通过 ArtworkImage 加载封面；独立图片客户端替换默认 User-Agent，不使用登录凭据，避免 Flutter NetworkImage 追加请求头导致 CDN 拒绝。
 SessionStore 持久化服务器和 Token 会话，不保存密码；另存平台/播放/列表偏好及账号隔离的浏览条件，搜索输入也存于安全存储。音频 URL 请求不附带用户 Token。
-后台播放服务、本地数据库、实时同步方案尚未选定。个人歌单重命名/删除/关联歌单刷新由 LibraryController 重读快照后调用 LxApi 全量写入，UI 仅确认和发送操作；接口无并发冲突检测。歌词使用独立 LRC 解析模型；异步响应与当前曲目绑定，切歌/退出使旧请求失效。
+后台媒体服务采用 audio_service，SystemAudioHandler 订阅唯一 PlayerController 并将系统操作委派回控制器，不创建第二播放器或队列；本地数据库、实时同步方案尚未选定。个人歌单重命名/删除/关联歌单刷新由 LibraryController 重读快照后调用 LxApi 全量写入，UI 仅确认和发送操作；接口无并发冲突检测。歌词使用独立 LRC 解析模型；异步响应与当前曲目绑定，切歌/退出使旧请求失效。
 后续随功能扩大拆分 AppController，避免把所有业务持续集中其中。
 
 音质策略独立为 QualityPolicy，解析返回 PlaybackResource，区分请求值与服务器标注。

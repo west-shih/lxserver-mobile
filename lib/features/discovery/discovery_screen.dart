@@ -7,6 +7,7 @@ import '../../app/theme.dart';
 import '../../core/lx_api.dart';
 import '../../core/page_window.dart';
 import '../../shared/song_art.dart';
+import '../../shared/music_badge.dart';
 import '../../shared/platform_filters.dart';
 import '../../shared/result_pagination.dart';
 import '../library/collection_screen.dart';
@@ -355,55 +356,51 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                               fontSize: 14,
                             ),
                           ),
-                          subtitle: playlist.metadata.date.isEmpty
-                              ? Text(
-                                  [
-                                        if (d.aggregate) playlist.source.label,
-                                        playlist.author,
-                                        if (playlist.count.isNotEmpty)
-                                          '${playlist.count} 次播放',
-                                      ]
-                                      .where((value) => value.isNotEmpty)
-                                      .join(' · '),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Row(
+                                children: [
+                                  MusicBadge(
+                                    playlist.source.label,
+                                    tone: MusicBadge.source(playlist.source),
+                                  ),
+                                  if (playlist.author.isNotEmpty ||
+                                      playlist.count.isNotEmpty) ...[
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        [
+                                              playlist.author,
+                                              if (playlist.count.isNotEmpty)
+                                                '${playlist.count} 次播放',
+                                            ]
+                                            .where((value) => value.isNotEmpty)
+                                            .join(' · '),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: lxMuted,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              if (playlist.metadata.date.isNotEmpty)
+                                Text(
+                                  playlist.metadata.date,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                     color: lxMuted,
                                     fontSize: 11,
                                   ),
-                                )
-                              : Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      [
-                                            if (d.aggregate)
-                                              playlist.source.label,
-                                            playlist.author,
-                                            if (playlist.count.isNotEmpty)
-                                              '${playlist.count} 次播放',
-                                          ]
-                                          .where((value) => value.isNotEmpty)
-                                          .join(' · '),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: lxMuted,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                    Text(
-                                      playlist.metadata.date,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: lxMuted,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                  ],
                                 ),
+                            ],
+                          ),
                           onTap: () {
                             final session = c.session;
                             if (session == null) return;

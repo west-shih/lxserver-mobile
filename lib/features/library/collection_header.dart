@@ -5,6 +5,7 @@ import '../../shared/app_modal.dart';
 import '../../app/theme.dart';
 import '../../core/lx_api.dart';
 import '../../shared/song_art.dart';
+import '../../shared/music_badge.dart';
 import 'collection_metadata.dart';
 
 class CollectionHeader extends StatelessWidget {
@@ -55,40 +56,34 @@ class CollectionHeader extends StatelessWidget {
                       color: lxInk,
                     ),
                   ),
-                  if (source != null)
+                  if (source != null || metadata.author.isNotEmpty || linked)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: .8),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          '来自 ${source!.label}',
-                          style: const TextStyle(fontSize: 11, color: lxMuted),
-                        ),
-                      ),
-                    ),
-                  if (metadata.author.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 7),
-                      child: Text(
-                        '创建者：${metadata.author}',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12, color: lxMuted),
-                      ),
-                    )
-                  else if (linked)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 7),
-                      child: Text(
-                        '已收藏的在线歌单',
-                        style: TextStyle(fontSize: 12, color: lxMuted),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          if (source != null)
+                            MusicBadge(
+                              source!.label,
+                              tone: MusicBadge.source(source!),
+                            ),
+                          if (metadata.author.isNotEmpty || linked) ...[
+                            if (source != null) const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                metadata.author.isNotEmpty
+                                    ? '创建者：${metadata.author}'
+                                    : '已收藏的在线歌单',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: lxMuted,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                 ],
