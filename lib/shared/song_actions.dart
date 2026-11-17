@@ -123,7 +123,7 @@ void showSongActions(
                 showDownloadQuality(origin, controller, song);
               },
             ),
-            if (fromPlayer)
+            if (controller.player.current?.id == song.id)
               ListTile(
                 leading: const Icon(Icons.music_note_rounded),
                 title: const Text('音质选择'),

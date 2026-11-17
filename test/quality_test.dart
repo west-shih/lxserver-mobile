@@ -12,6 +12,55 @@ import 'package:lxserver_mobile/features/player/lyrics.dart';
 import 'package:lxserver_mobile/shared/song_tile.dart';
 
 void main() {
+  testWidgets(
+    'List badge prefers remembered track quality and resets to metadata',
+    (tester) async {
+      final c = AppController();
+      addTearDown(c.dispose);
+      final session = Session(
+        Uri.parse('https://example.test'),
+        'fixture',
+        'fixture-token',
+      );
+      c.session = session;
+      final song = Song({
+        'songmid': 'badge-fixture',
+        'quality': 'master',
+      }, MusicSource.tx);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SongTile(song: song, controller: c, queue: [song]),
+          ),
+        ),
+      );
+      expect(find.text('Master'), findsOneWidget);
+      for (final quality in ['atmos', '128k']) {
+        c.player.cache.success(
+          c.player.cache.scope(session),
+          song,
+          PlaybackResource(
+            Uri.parse('https://media.test/audio'),
+            quality,
+            quality,
+          ),
+          preference: 'flac',
+        );
+        c.player.refreshQualityAvailability();
+        await tester.pump();
+        expect(find.text(AudioQuality.labelOf(quality)), findsOneWidget);
+        expect(find.text('Master'), findsNothing);
+      }
+      c.player.restoreQuality('hires');
+      c.player.refreshQualityAvailability();
+      await tester.pump();
+      expect(find.text('标准'), findsOneWidget);
+      c.player.cache.forget(c.player.cache.scope(session), song);
+      c.player.refreshQualityAvailability();
+      await tester.pump();
+      expect(find.text('Master'), findsOneWidget);
+    },
+  );
   test('Badges reflect track metadata, not platform possibilities', () {
     expect(QualityPolicy.badge(Song({}, MusicSource.tx)), null);
     expect(

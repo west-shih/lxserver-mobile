@@ -20,11 +20,21 @@ class SongMetadata extends StatelessWidget {
   final bool showSinger;
   final String? qualityOverride;
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: controller.player,
+    builder: (context, _) => _buildMetadata(context),
+  );
+
+  Widget _buildMetadata(BuildContext context) {
     final folders = controller.serverFiles.folders(song);
     final local = controller.localMedia.folders(song);
+    final session = controller.session;
+    final remembered = session == null
+        ? null
+        : AudioQuality.find(controller.player.rememberedQuality(session, song));
     final quality =
         qualityOverride ??
+        (remembered?.id == 'master' ? 'Master' : remembered?.label) ??
         QualityPolicy.badge(song, verified: [...folders.keys, ...local.keys]);
     final cached = controller.localMedia.badge(song);
     final badges = <Widget>[
@@ -35,7 +45,9 @@ class SongMetadata extends StatelessWidget {
       if (quality != null)
         Tooltip(
           message: qualityOverride == null
-              ? '歌曲标注音质，实际播放以解析结果为准'
+              ? remembered != null
+                    ? '本机记住的歌曲音质，实际播放以解析结果为准'
+                    : '歌曲标注音质，实际播放以解析结果为准'
               : '当前播放音质，以服务器标注为准',
           child: MusicBadge(quality, tone: MusicBadge.quality(quality)),
         ),

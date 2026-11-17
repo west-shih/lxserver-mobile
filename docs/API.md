@@ -99,6 +99,8 @@
 
 ## 音质契约
 
+- 客户端列表展示优先使用该歌本机已记住的成功档位（标准档同样显示），无记录再按以下资料标签规则展示；当前播放页显式实际音质优先。此展示调整不改变服务端契约，也不使用全局默认冒充该歌实际音质。
+
 - 列表标签依据上游 public/music/app.js 的 getQualityTags：读取歌曲 types/_types、qualitys/_qualitys 及 meta 中对应字段，或显式 quality/type，按 Master、Atmos、Hi-Res、无损、高品质显示最高一档；未知或仅标准不显示高级标签。平台占位条目 isPlatformQuality 不当作具体歌曲音质。标签不是解析成功证明，不触发额外 URL 请求。
 - 服务器文件索引可补充具体已存在音质；颜色对照 app.js getSourceTag、public/music/css/theme_variables.css .t-badge-* 和 server_file_state.js：QQ/无损/缓存绿，酷我/Hi-Res 黄，酷狗/高品质/下载蓝，网易红，咪咕粉，Master 紫，Atmos 青。
 

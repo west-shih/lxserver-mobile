@@ -43,6 +43,11 @@ class PlayerController extends ChangeNotifier {
   final VoidCallback onUnauthorized;
   final Future<void> Function(String)? onQualityChanged;
   String preferredQuality = 'flac';
+  String? rememberedQuality(Session session, Song song) => cache.successful(
+    cache.scope(session),
+    song,
+    preference: preferredQuality,
+  );
   String _playbackPreference = 'flac';
   Future<void> setPreferredQuality(String value) async {
     if (AudioQuality.find(value) == null || value == preferredQuality) return;

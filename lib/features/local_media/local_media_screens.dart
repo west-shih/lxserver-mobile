@@ -560,6 +560,7 @@ class CacheSettingsScreen extends StatelessWidget {
     );
     if (confirmed != true || controller.session != session) return;
     await controller.player.cache.resetTrackChoices(session);
+    controller.player.refreshQualityAvailability();
     refresh();
     if (context.mounted) {
       ScaffoldMessenger.of(context)
@@ -572,6 +573,29 @@ class CacheSettingsScreen extends StatelessWidget {
     bool audio,
     VoidCallback refresh,
   ) async {
+    final confirmed = await showAppDialog<bool>(
+      context: context,
+      dangerous: true,
+      builder: (dialog) => AlertDialog(
+        title: Text(audio ? '清理音频缓存？' : '清理浏览缓存？'),
+        content: Text(
+          audio
+              ? '清理播放时自动保存的本机音频缓存。主动下载的文件会保留，当前播放占用的缓存将在切歌后清理。'
+              : '清理本机保存的浏览内容缓存，后续浏览时重新加载。当前页面已显示的内容会保留，音频文件和播放偏好不受影响。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialog, true),
+            child: const Text('清理'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
     try {
       if (audio) {
         await controller.localMedia.clearCache();

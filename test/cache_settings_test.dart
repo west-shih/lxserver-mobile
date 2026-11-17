@@ -53,6 +53,16 @@ void main() {
       await tester.scrollUntilVisible(find.byTooltip('清理浏览缓存'), 160);
       await tester.tap(find.byTooltip('清理浏览缓存'));
       await tester.pumpAndSettle();
+      expect(find.text('清理浏览缓存？'), findsOneWidget);
+      expect(cache.usage, 3 * 1024 * 1024);
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
+      expect(cache.usage, 3 * 1024 * 1024);
+      await tester.tap(find.byTooltip('清理浏览缓存'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('清理'));
+      await tester.pumpAndSettle();
+      expect(cache.usage, 0);
       await tester.scrollUntilVisible(
         find.byKey(const ValueKey('cache-total-usage')),
         -160,
@@ -96,6 +106,13 @@ void main() {
           home: CacheSettingsScreen(controller: c),
         ),
       );
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(find.byTooltip('清空音频缓存'), 160);
+      await tester.tap(find.byTooltip('清空音频缓存'));
+      await tester.pumpAndSettle();
+      expect(find.text('清理音频缓存？'), findsOneWidget);
+      expect(find.textContaining('主动下载的文件会保留'), findsOneWidget);
+      await tester.tap(find.text('取消'));
       await tester.pumpAndSettle();
       await tester.scrollUntilVisible(find.byTooltip('清理浏览缓存'), 160);
       expect(find.text('浏览缓存容量'), findsOneWidget);
