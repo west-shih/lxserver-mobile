@@ -29,6 +29,47 @@ class EntityDetailController extends ChangeNotifier {
   }
 
   final LxApi api;
+  bool _checkingExpiry = false;
+  Future<bool> revalidate() async {
+    if (_checkingExpiry || loading || _disposed) return false;
+    if (!restoredSnapshot && error != null) return false;
+    _checkingExpiry = true;
+    final version = _version, albumVersion = _albumVersion;
+    final staged = EntityDetailController(api, session, entity, () {
+      if (!_disposed && version == _version) onUnauthorized();
+    })..restoreSnapshot(snapshot());
+    try {
+      final changed = await api.revalidateBrowse(
+        () async {
+          await staged.load();
+          if (_page > 0) await staged.loadAlbums();
+          if (staged.error != null ||
+              staged.infoError != null ||
+              staged.albumError != null) {
+            throw StateError('Incomplete detail refresh');
+          }
+        },
+        current: () =>
+            !_disposed && version == _version && albumVersion == _albumVersion,
+      );
+      if (changed &&
+          !_disposed &&
+          version == _version &&
+          albumVersion == _albumVersion &&
+          staged.error == null &&
+          staged.infoError == null &&
+          staged.albumError == null) {
+        restoreSnapshot(staged.snapshot());
+        notifyListeners();
+        return true;
+      }
+      return false;
+    } finally {
+      staged.dispose();
+      _checkingExpiry = false;
+    }
+  }
+
   final Session session;
   final VoidCallback onUnauthorized;
   MusicEntity entity;

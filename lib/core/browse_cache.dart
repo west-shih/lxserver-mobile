@@ -6,13 +6,38 @@ import 'package:crypto/crypto.dart';
 import 'package:path_provider/path_provider.dart';
 
 /// Rebuildable metadata, separate from audio/downloads and credentials.
-/// Entries remain usable until explicit refresh or capacity eviction.
+/// Soft expiry never removes data: offline readers can still use old entries.
 class BrowseCache {
   static final shared = BrowseCache();
   BrowseCache({
     Future<Directory> Function()? directory,
     this.maxBytes = 128 * 1024 * 1024,
-  }) : _directory = directory ?? _defaultDirectory;
+    DateTime Function()? now,
+  }) : _directory = directory ?? _defaultDirectory,
+       _now = now ?? DateTime.now;
+
+  final DateTime Function() _now;
+
+  static Duration lifetime(String path) => switch (path) {
+    '/api/music/songList/list' ||
+    '/api/music/songList/tags' => const Duration(hours: 1),
+    '/api/music/artistDetail' => const Duration(days: 7),
+    _ => const Duration(hours: 24),
+  };
+
+  Future<bool> isFresh(String key, Duration lifetime) async {
+    await _writes;
+    try {
+      final file = File('${(await _root()).path}/${digest(key)}.json');
+      final value = jsonDecode(await file.readAsString());
+      final stamp = value is Map ? value['fetchedAt'] : null;
+      if (stamp is! int) return false;
+      final age = _now().millisecondsSinceEpoch - stamp;
+      return age >= 0 && age < lifetime.inMilliseconds;
+    } catch (_) {
+      return false;
+    }
+  }
 
   final Future<Directory> Function() _directory;
   int maxBytes;
@@ -67,6 +92,7 @@ class BrowseCache {
       final encoded = jsonEncode({
         'version': 1,
         'family': family,
+        'fetchedAt': _now().millisecondsSinceEpoch,
         'data': data,
       });
       // Do not persist oversized responses or credential-bearing metadata.

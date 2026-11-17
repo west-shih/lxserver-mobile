@@ -35,53 +35,84 @@ void main() {
     root = await Directory.systemTemp.createTemp('lx-session-test');
   });
   tearDown(() => root.delete(recursive: true));
-  AppController controller(List<Uri> sent, {bool memory = false}) =>
-      AppController(
-        browseStore: memory ? _MemoryBrowseStore() : null,
-        mediaDirectory: () async => root,
-        api: LxApi(
-          browseCache: BrowseCache(
-            directory: () async => Directory('${root.path}/http'),
-          ),
-          client: MockClient((r) async {
-            sent.add(r.url);
-            Object data = {};
-            if (r.url.path.endsWith('/verify')) data = {'valid': true};
-            if (r.url.path == '/api/custom-source/list') {
-              data = [
-                {
-                  'enabled': true,
-                  'status': 'success',
-                  'supportedSources': ['wy'],
-                },
-              ];
-            }
-            if (r.url.path == '/api/music/search') {
-              final page = int.parse(r.url.queryParameters['page']!);
-              data = {
-                'list': List.generate(
-                  20,
-                  (i) => {
-                    'songmid': '${(page - 1) * 20 + i}',
-                    'source': 'wy',
-                    'name': 'Fixture $i',
-                  },
-                ),
-                'total': 200,
-                'pageSize': 20,
-                'hasMore': true,
-              };
-            }
-            return http.Response(jsonEncode(data), 200);
-          }),
-        ),
-      );
+  AppController controller(
+    List<Uri> sent, {
+    bool memory = false,
+    DateTime Function()? now,
+  }) => AppController(
+    browseStore: memory ? _MemoryBrowseStore() : null,
+    mediaDirectory: () async => root,
+    api: LxApi(
+      browseCache: BrowseCache(
+        now: now,
+        directory: () async => Directory('${root.path}/http'),
+      ),
+      client: MockClient((r) async {
+        sent.add(r.url);
+        Object data = {};
+        if (r.url.path.endsWith('/verify')) data = {'valid': true};
+        if (r.url.path == '/api/custom-source/list') {
+          data = [
+            {
+              'enabled': true,
+              'status': 'success',
+              'supportedSources': ['wy'],
+            },
+          ];
+        }
+        if (r.url.path == '/api/music/search') {
+          final page = int.parse(r.url.queryParameters['page']!);
+          data = {
+            'list': List.generate(
+              20,
+              (i) => {
+                'songmid': '${(page - 1) * 20 + i}',
+                'source': 'wy',
+                'name': 'Fixture $i',
+              },
+            ),
+            'total': 200,
+            'pageSize': 20,
+            'hasMore': true,
+          };
+        }
+        return http.Response(jsonEncode(data), 200);
+      }),
+    ),
+  );
   Future<void> close(AppController c) async {
     await c.flushBrowseState();
     c.dispose();
     await c.playbackResume.flush();
     await c.localMedia.flush();
   }
+
+  test('song entry revalidates expired first page without expiring ordinary pagination', () async {
+    var now = DateTime.utc(2026, 11, 17);
+    final sent = <Uri>[];
+    final c = controller(sent, memory: true, now: () => now);
+    await c.restore();
+    c.session = session;
+    await c.search('fixture');
+    await c.ensureSearchPage(1, 20);
+    final before = sent.where((u) => u.path == '/api/music/search').length;
+    final original = c.songs.length;
+    await c.revalidateSearch();
+    expect(c.songs.length, original);
+    expect(sent.where((u) => u.path == '/api/music/search').length, before);
+    now = now.add(const Duration(days: 1));
+    await c.ensureSearchPage(1, 20);
+    expect(sent.where((u) => u.path == '/api/music/search').length, before);
+    final update = c.revalidateSearch();
+    expect(c.songs.length, original);
+    await update;
+    expect(sent.where((u) => u.path == '/api/music/search').length, before + 1);
+    expect(c.songs.length, 20);
+    expect(c.page, 1);
+    await c.ensureSearchPage(1, 20);
+    expect(sent.where((u) => u.path == '/api/music/search').length, before + 2);
+    await close(c);
+  });
 
   test('restart keeps noncontiguous native pages and positions without music queries', () async {
     final first = controller([]);

@@ -70,11 +70,27 @@ class _EntityDetailScreenState extends State<EntityDetailScreen>
   final _scroll = ScrollController();
   AppController get c => widget.controller;
   @override
+  Future<void> revalidateView() async {
+    if (!mounted ||
+        c.offlineMode ||
+        c.session != d.session ||
+        _selecting ||
+        _busy ||
+        ModalRoute.of(context)?.isCurrent != true) {
+      return;
+    }
+    if (await d.revalidate() && mounted) {
+      setState(() => _page = 0);
+      if (_scroll.hasClients) _scroll.jumpTo(0);
+    }
+  }
+
+  @override
   void initState() {
     d = EntityDetailController(c.api, c.session!, widget.entity, c.expire);
     super.initState();
     d.addListener(rememberView);
-    if (!d.restoredSnapshot) d.load();
+    if (!d.restoredSnapshot) d.load().then((_) => revalidateView());
     c.refreshServerFiles();
     c.addListener(_sessionChanged);
     // Refresh favorite state when arriving directly from a search result.

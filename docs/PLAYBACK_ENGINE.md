@@ -95,4 +95,6 @@ Android 配置 WAKE_LOCK、FOREGROUND_SERVICE、FOREGROUND_SERVICE_MEDIA_PLAYBAC
 源码依据：固定 v2.2.0 / 13865b82 的 public/music/app.js 中 mediaSession 操作处理与 updateMediaSessionMetadata；原生客户端通过插件实现，不新增服务端契约。[插件接入文档](https://pub.dev/packages/audio_service)、[音频会话文档](https://pub.dev/packages/audio_session)。system_audio_handler_test 覆盖恢复不抢占卡片、元数据/按钮、幂等播放暂停、进度/下一首委派及退出清理。锁屏外观、熄屏连续切歌、暂停后继续、耳机/来电打断及 iOS 均须设备验收，单元测试不替代这些结果。
 ## 浏览缓存与播放失败边界
 
+浏览内容新增软过期，具体规则由 ARCHITECTURE.md 与 D025 统一维护：进入页面时检查，推荐/分类 1 小时、搜索/外部歌单/歌曲列表 24 小时、歌手资料 7 天；失败保留旧内容。该 TTL 不用于音频文件、播放 URL、成功音质记录、公开封面或浏览位置，不因浏览过期重试播放或改写现有队列。browse_expiry_test 验证过期与翻页边界，实际设备及部署流量待验收。
+
 浏览响应、歌词及公开封面由独立 BrowseCache 管理，默认 128 MiB、可配置，与上述四类播放记录分开；清理浏览缓存不触碰音频与下载文件，下载封面仍由 LocalArtwork 管理。播放 URL 不进入该持久化缓存。LxApi 对未被识别为既有音源能力错误的 HTTP 5xx 标记 server，HTTP 429 标记 rateLimited；两者终止本次 loadWithQualityFallback，不继续解析其他源或降低音质。它们不是“已证实网易风控”的分类。下载任务遇这两类错误时，当前任务失败，同账号同平台的排队任务变为暂停，其他平台可继续；用户手动继续才重新尝试。服务端 SDK 自身重试不在客户端控制范围内。

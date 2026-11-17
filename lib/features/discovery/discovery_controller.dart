@@ -33,6 +33,32 @@ class DiscoveryController extends ChangeNotifier {
   }
 
   final LxApi api;
+  bool _checkingExpiry = false;
+  Future<void> revalidate(Session session) async {
+    if (_checkingExpiry || loading || page == 0) return;
+    _checkingExpiry = true;
+    final version = _version;
+    final staged =
+        DiscoveryController(api, () {
+            if (version == _version) onUnauthorized();
+          })
+          ..restoreSnapshot(snapshot())
+          ..sources = List.of(sources);
+    try {
+      final changed = await api.revalidateBrowse(() async {
+        await staged.load(session, categories: !aggregate);
+        if (staged.error != null) throw StateError('Incomplete browse refresh');
+      }, current: () => version == _version);
+      if (changed && version == _version && staged.error == null) {
+        restoreSnapshot(staged.snapshot());
+        notifyListeners();
+      }
+    } finally {
+      staged.dispose();
+      _checkingExpiry = false;
+    }
+  }
+
   final VoidCallback onUnauthorized;
   MusicSource source = MusicSource.wy;
   bool aggregate = false;

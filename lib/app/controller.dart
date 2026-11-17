@@ -102,6 +102,86 @@ class AppController extends ChangeNotifier {
     'pages': {for (final e in _pages.entries) e.key.name: e.value},
     'remaining': _more.map((e) => e.name).toList(),
   };
+  bool _checkingSearchExpiry = false;
+  Future<void> revalidateSearch() async {
+    final active = session;
+    if (_checkingSearchExpiry ||
+        searching ||
+        offlineMode ||
+        active == null ||
+        keyword.isEmpty ||
+        page == 0) {
+      return;
+    }
+    _checkingSearchExpiry = true;
+    final version = _searchVersion;
+    final query = keyword, selected = source, combined = aggregate;
+    bool current() =>
+        session == active &&
+        version == _searchVersion &&
+        keyword == query &&
+        source == selected &&
+        aggregate == combined;
+    final targets = combined ? List.of(availableSources) : [selected];
+    final results = <MusicSource, SearchPage>{};
+    try {
+      final changed = await api.revalidateBrowse(() async {
+        for (final platform in targets) {
+          results[platform] = await api.search(active, query, platform, 1);
+        }
+      }, current: current);
+      if (!changed || !current()) return;
+      final buckets = {for (final e in results.entries) e.key: e.value.songs};
+      final window = PageWindow<Song>((s) => s.id);
+      if (!combined) {
+        final result = results[selected]!;
+        window.add(
+          1,
+          result.songs,
+          total: result.total,
+          size: result.pageSize,
+          hasMore: result.hasMore,
+        );
+      }
+      final length = buckets.values.fold<int>(
+        0,
+        (n, v) => v.length > n ? v.length : n,
+      );
+      final items = [
+        for (var i = 0; i < length; i++)
+          for (final platform in targets)
+            if (i < buckets[platform]!.length) buckets[platform]![i],
+      ];
+      _restoreSongSearch({
+        'source': selected.name,
+        'aggregate': combined,
+        'keyword': query,
+        'songs': items.map((s) => s.raw).toList(),
+        'page': 1,
+        'more': results.values.any((r) => r.hasMore),
+        'revision': searchRevision + 1,
+        'window': window.snapshot((s) => s.raw),
+        'buckets': {
+          for (final e in buckets.entries)
+            e.key.name: e.value.map((s) => s.raw).toList(),
+        },
+        'pages': {for (final platform in targets) platform.name: 1},
+        'remaining': [
+          for (final e in results.entries)
+            if (e.value.hasMore) e.key.name,
+        ],
+      });
+      searchError = null;
+      sourceFailures.clear();
+      localMedia.updateArtwork(songs);
+      notifyListeners();
+    } on ApiFailure catch (e) {
+      if (e.unauthorized && current()) expire();
+    } finally {
+      _checkingSearchExpiry = false;
+    }
+  }
+
   void _restoreSongSearch(Map value) {
     MusicSource platform(Object? id) =>
         MusicSource.values.where((e) => e.name == id).firstOrNull ??

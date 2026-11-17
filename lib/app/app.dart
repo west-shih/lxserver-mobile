@@ -7,6 +7,7 @@ import 'home.dart';
 import 'controller.dart';
 import 'browse_navigation.dart';
 import 'theme.dart';
+import '../shared/browse_route_observer.dart';
 
 class LxApp extends StatefulWidget {
   const LxApp({super.key, required this.controller});
@@ -59,7 +60,7 @@ class _LxAppState extends State<LxApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) => MaterialApp(
     title: 'LXServer Mobile',
     navigatorKey: _navigator,
-    navigatorObservers: [_browseObserver],
+    navigatorObservers: [_browseObserver, browseRouteObserver],
     debugShowCheckedModeBanner: false,
     theme: ThemeData(
       useMaterial3: true,

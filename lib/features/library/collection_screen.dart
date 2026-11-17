@@ -143,7 +143,60 @@ class _CollectionScreenState extends State<CollectionScreen>
     super.initState();
     _scroll.addListener(_onScroll);
     widget.controller.refreshServerFiles();
-    if (_more && _page == 0) _load();
+    if (_more && _page == 0) _load().then((_) => revalidateView());
+  }
+
+  bool _checkingExpiry = false;
+  @override
+  Future<void> revalidateView() async {
+    final c = widget.controller;
+    if (!mounted ||
+        widget.editable ||
+        widget.fetchPage == null ||
+        c.offlineMode ||
+        _checkingExpiry ||
+        _loading ||
+        _saving ||
+        _selecting ||
+        (_page == 0 && _error != null) ||
+        ModalRoute.of(context)?.isCurrent != true) {
+      return;
+    }
+    _checkingExpiry = true;
+    final session = c.session;
+    final oldPage = _page, oldVisible = _visiblePage;
+    final oldSongs = _songs;
+    SongBatch? result;
+    bool current() =>
+        mounted &&
+        session == c.session &&
+        !_loading &&
+        !_saving &&
+        !_selecting &&
+        _page == oldPage &&
+        _visiblePage == oldVisible &&
+        identical(oldSongs, _songs);
+    try {
+      final changed = await c.api.revalidateBrowse(() async {
+        result = await widget.fetchPage!(1);
+      }, current: current);
+      if (!changed || !current()) return;
+      final fresh = result!;
+      setState(() {
+        _songs = fresh.songs;
+        _page = 1;
+        _visiblePage = 0;
+        _more = fresh.hasMore;
+        _reportedTotal = fresh.total;
+        _metadata = _metadata.merge(fresh.metadata);
+        _remoteImage = firstImage([fresh.image, _remoteImage]);
+      });
+      if (_scroll.hasClients) _scroll.jumpTo(0);
+    } on ApiFailure catch (e) {
+      if (e.unauthorized && session == c.session) c.expire();
+    } finally {
+      _checkingExpiry = false;
+    }
   }
 
   void _onScroll() {

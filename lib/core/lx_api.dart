@@ -199,6 +199,12 @@ class PlaybackResource {
   final bool localFile;
 }
 
+class _BrowseRevalidation {
+  bool updated = false;
+  bool failed = false;
+  final List<Future<void> Function()> writes = [];
+}
+
 class LxApi {
   LxApi({http.Client? client, BrowseCache? browseCache})
     : _client = client ?? http.Client(),
@@ -207,6 +213,40 @@ class LxApi {
   static final Object _refreshKey = Object();
   static final Object _currentKey = Object();
   static final Object _cacheOnlyKey = Object();
+  static final Object _revalidationKey = Object();
+
+  /// Run a detached page model on entry. Commit only a complete successful update.
+  /// Ordinary reads (including pagination) deliberately ignore soft expiry.
+  Future<bool> revalidateBrowse(
+    Future<void> Function() action, {
+    bool Function()? current,
+  }) async {
+    if (browseCache == null || readingCachedBrowseOnly) return false;
+    final state = _BrowseRevalidation();
+    final generation = browseCache!.generation;
+    try {
+      await runZoned(
+        () => browseQuery(current ?? () => true, action),
+        zoneValues: {_revalidationKey: state},
+      );
+      if (!state.updated ||
+          state.failed ||
+          generation != browseCache!.generation ||
+          !(current?.call() ?? true)) {
+        return false;
+      }
+      for (final write in state.writes) {
+        await write();
+      }
+      return generation == browseCache!.generation && (current?.call() ?? true);
+    } on ApiFailure catch (e) {
+      if (e.unauthorized) rethrow;
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   final Map<String, Future<Object>> _pendingBrowse = {};
   final Map<String, List<bool Function()>> _interested = {};
   final Map<String, Future<void>> _platformQueues = {};
@@ -222,7 +262,13 @@ class LxApi {
   Future<T> browseQuery<T>(
     bool Function() current,
     Future<T> Function() action,
-  ) => runZoned(action, zoneValues: {_currentKey: current});
+  ) {
+    final parent = Zone.current[_currentKey] as bool Function()?;
+    return runZoned(
+      action,
+      zoneValues: {_currentKey: () => current() && (parent?.call() ?? true)},
+    );
+  }
 
   static const _browsePaths = {
     '/api/music/search',
@@ -282,8 +328,9 @@ class LxApi {
       ]),
     );
     final force = refreshingBrowse;
+    final revalidation = Zone.current[_revalidationKey] as _BrowseRevalidation?;
     final pendingKey = BrowseCache.digest(
-      '$key:${session.token}:$force:$readingCachedBrowseOnly',
+      '$key:${session.token}:$force:$readingCachedBrowseOnly:${identityHashCode(revalidation)}',
     );
     final current = Zone.current[_currentKey] as bool Function()?;
     if (_pendingBrowse[pendingKey] case final pending?) {
@@ -296,7 +343,11 @@ class LxApi {
     final work = () async {
       if (!force) {
         final cached = await browseCache?.read(key);
-        if (cached != null) return cached;
+        if (cached != null &&
+            (revalidation == null ||
+                await browseCache!.isFresh(key, BrowseCache.lifetime(path)))) {
+          return cached;
+        }
       }
       if (Zone.current[_cacheOnlyKey] == true) {
         throw const ApiFailure('离线时没有这部分浏览缓存', kind: FailureKind.network);
@@ -331,21 +382,33 @@ class LxApi {
       _platformQueues[platform] = tail;
       try {
         final data = await result;
-        if (generation != null && generation == browseCache!.generation) {
-          final requestedPage =
-              query?['page'] ?? (body is Map ? body['page']?.toString() : null);
-          if (force && (requestedPage == null || requestedPage == '1')) {
-            await browseCache!.invalidateFamily(family);
+        Future<void> save() async {
+          if (generation != null && generation == browseCache!.generation) {
+            final requestedPage =
+                query?['page'] ??
+                (body is Map ? body['page']?.toString() : null);
+            if ((force || revalidation != null) &&
+                (requestedPage == null || requestedPage == '1')) {
+              await browseCache!.invalidateFamily(family);
+            }
+            await browseCache!.write(
+              key,
+              data,
+              generation: generation,
+              family: family,
+            );
           }
-          await browseCache!.write(
-            key,
-            data,
-            generation: generation,
-            family: family,
-          );
         }
+
+        if (revalidation == null) {
+          await save();
+        } else {
+          revalidation.writes.add(save);
+        }
+        revalidation?.updated = true;
         return data;
       } on ApiFailure {
+        revalidation?.failed = true;
         if ((_platformFailures[failureKey] ?? 0) == failureVersion &&
             interested.any((check) => check())) {
           _platformFailures[failureKey] = failureVersion + 1;

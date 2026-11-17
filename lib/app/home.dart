@@ -11,6 +11,7 @@ import '../features/search/music_entity.dart';
 import '../features/library/library_screen.dart';
 import '../features/discovery/discovery_screen.dart';
 import '../features/player/player_views.dart';
+import '../shared/browse_route_observer.dart';
 
 class MusicHome extends StatefulWidget {
   const MusicHome({super.key, required this.controller});
@@ -19,7 +20,52 @@ class MusicHome extends StatefulWidget {
   State<MusicHome> createState() => _MusicHomeState();
 }
 
-class _MusicHomeState extends State<MusicHome> {
+class _MusicHomeState extends State<MusicHome> implements RouteAware {
+  PageRoute<dynamic>? _route;
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute && route != _route) {
+      browseRouteObserver.unsubscribe(this);
+      _route = route;
+      browseRouteObserver.subscribe(this, route);
+    }
+  }
+
+  @override
+  void didPopNext() {
+    _revalidate();
+  }
+
+  @override
+  void didPush() {}
+  @override
+  void didPop() {}
+  @override
+  void didPushNext() {}
+
+  Future<void> _revalidate() async {
+    final c = widget.controller;
+    final session = c.session;
+    if (!mounted ||
+        session == null ||
+        c.offlineMode ||
+        c.resumingBrowse ||
+        ModalRoute.of(context)?.isCurrent != true) {
+      return;
+    }
+    if (_tab == 0) {
+      if (c.entitySearch.kind == SearchKind.song) {
+        await c.revalidateSearch();
+      } else {
+        await c.entitySearch.revalidate(session);
+      }
+    } else if (_tab == 1) {
+      await c.discovery.revalidate(session);
+    }
+  }
+
   final _songQuery = TextEditingController();
   final _playlistQuery = TextEditingController();
   int _tab = 0;
@@ -47,6 +93,7 @@ class _MusicHomeState extends State<MusicHome> {
 
   @override
   void dispose() {
+    browseRouteObserver.unsubscribe(this);
     _songQuery.dispose();
     _playlistQuery.dispose();
     super.dispose();
@@ -57,13 +104,19 @@ class _MusicHomeState extends State<MusicHome> {
     final c = widget.controller;
     if (_tab == 0) {
       if (c.entitySearch.kind == SearchKind.song) {
-        c.search(value);
+        c.search(value).then((_) {
+          if (c.searchError == null) _revalidate();
+        });
       } else if (c.session != null && c.entitySources.isNotEmpty) {
-        c.entitySearch.search(c.session!, value);
+        c.entitySearch.search(c.session!, value).then((_) {
+          if (c.entitySearch.error == null) _revalidate();
+        });
       }
     } else if (_tab == 1 && c.session != null) {
       c.discovery.keyword = value.trim();
-      c.discovery.load(c.session!);
+      c.discovery.load(c.session!).then((_) {
+        if (c.discovery.error == null) _revalidate();
+      });
     }
   }
 
@@ -71,6 +124,7 @@ class _MusicHomeState extends State<MusicHome> {
     final c = widget.controller;
     final session = c.session;
     if (session == null) return;
+    final changedTab = _tab != tab;
     setState(() => _tab = tab);
     c.homeTab = tab;
     c.flushBrowseState();
@@ -85,9 +139,12 @@ class _MusicHomeState extends State<MusicHome> {
           c.discovery.page == 0 &&
           !c.discovery.loading &&
           !c.resumingBrowse) {
-        c.discovery.load(session, categories: !c.discovery.aggregate);
+        c.discovery
+            .load(session, categories: !c.discovery.aggregate)
+            .then((_) => _revalidate());
       }
     }
+    if (changedTab || c.savedRoutes.isEmpty) _revalidate();
   }
 
   void _account() => Navigator.push(
