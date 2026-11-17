@@ -1,3 +1,5 @@
+import '../shared/compact_search.dart';
+
 import 'package:flutter/material.dart';
 
 import 'controller.dart';
@@ -10,6 +12,7 @@ import '../features/search/entity_search_screen.dart';
 import '../features/search/music_entity.dart';
 import '../features/library/library_screen.dart';
 import '../features/discovery/discovery_screen.dart';
+import '../features/discovery/shared_playlist_sheet.dart';
 import '../features/player/player_views.dart';
 import '../shared/browse_route_observer.dart';
 
@@ -155,7 +158,7 @@ class _MusicHomeState extends State<MusicHome> implements RouteAware {
   @override
   Widget build(BuildContext context) {
     final c = widget.controller;
-    final searchHeight = 40 * MediaQuery.textScalerOf(context).scale(14) / 14;
+    final searchHeight = compactSearchHeight(context);
     return Scaffold(
       body: SafeArea(
         bottom: false,
@@ -187,52 +190,10 @@ class _MusicHomeState extends State<MusicHome> implements RouteAware {
                                 textAlignVertical: TextAlignVertical.center,
                                 textInputAction: TextInputAction.search,
                                 onSubmitted: _search,
-                                decoration: InputDecoration(
+                                decoration: compactSearchDecoration(
                                   hintText: _tab == 0
                                       ? '搜索${c.entitySearch.kind.label}'
                                       : '搜索歌单',
-                                  isDense: true,
-                                  hintStyle: const TextStyle(
-                                    fontSize: 14,
-                                    color: lxMuted,
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 8,
-                                  ),
-                                  prefixIcon: const Icon(
-                                    Icons.search_rounded,
-                                    size: 20,
-                                  ),
-                                  prefixIconConstraints: const BoxConstraints(
-                                    minWidth: 40,
-                                    minHeight: 40,
-                                  ),
-                                  suffixIconConstraints:
-                                      const BoxConstraints.tightFor(
-                                        width: 40,
-                                        height: 40,
-                                      ),
-                                  suffixIcon: IconButton(
-                                    tooltip: '搜索',
-                                    onPressed: () => _search(
-                                      _tab == 0
-                                          ? _songQuery.text
-                                          : _playlistQuery.text,
-                                    ),
-                                    icon: const Icon(
-                                      Icons.arrow_forward_rounded,
-                                      size: 20,
-                                    ),
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(24),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(24),
-                                    borderSide: BorderSide.none,
-                                  ),
                                 ),
                               ),
                             ),
@@ -301,6 +262,25 @@ class _MusicHomeState extends State<MusicHome> implements RouteAware {
                               ),
                             ],
                           ),
+                        ),
+                      )
+                    else if (_tab == 1)
+                      IconButton(
+                        tooltip: '打开分享的歌单',
+                        onPressed: () => showSharedPlaylist(context, c),
+                        style: IconButton.styleFrom(
+                          foregroundColor: const Color(0xFF4B5563),
+                          backgroundColor: Colors.white,
+                          elevation: 1,
+                          shadowColor: const Color(0x1F000000),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: const BorderSide(color: Color(0xFFF0F0F0)),
+                          ),
+                        ),
+                        icon: Transform.rotate(
+                          angle: -0.7853981634,
+                          child: const Icon(Icons.link_rounded),
                         ),
                       )
                     else

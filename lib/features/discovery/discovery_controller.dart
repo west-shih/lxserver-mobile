@@ -510,6 +510,29 @@ class DiscoveryController extends ChangeNotifier {
         }, source);
   }
 
+  Future<PlaylistSummary> openShared(
+    Session session,
+    MusicSource source,
+    String input,
+  ) async {
+    final data = await api.read(
+      session,
+      '/api/music/songList/detail',
+      query: {'source': source.name, 'id': input, 'page': '1'},
+    );
+    if (data is! Map || data['list'] is! List) {
+      throw const ApiFailure('歌单详情格式不兼容');
+    }
+    final info = data['info'] is Map
+        ? Map<String, dynamic>.from(data['info'])
+        : <String, dynamic>{};
+    return PlaylistSummary({
+      ...info,
+      'id': input,
+      'name': info['name'] ?? '分享的歌单',
+    }, source);
+  }
+
   Future<SongBatch> detail(
     Session session,
     PlaylistSummary summary,

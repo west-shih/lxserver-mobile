@@ -219,7 +219,7 @@ Future<PlaybackResource?> loadWithQualityFallback({
   bool respectMetadata = true,
   Future<PlaybackResource?> Function(String)? serverCache,
   Future<PlaybackResource?> Function(String)? localFile,
-  bool localFirst = true,
+  bool localFirst = false,
   Future<PlaybackResource> Function(String, List<String>)? resolveFromSources,
   Duration recoveryBudget = const Duration(seconds: 30),
   int maxResolutions = 4,
@@ -243,21 +243,17 @@ Future<PlaybackResource?> loadWithQualityFallback({
     }
   }
 
+  final remembered = cache?.successful(scope, song, preference: preference);
+  final supported = QualityPolicy.selectable(song).map((q) => q.id).toSet();
+  final working = remembered != null && supported.contains(remembered)
+      ? remembered
+      : null;
   final planned = QualityPolicy.attempts(
     song,
-    preference,
-    respectMetadata: respectMetadata,
+    working ?? preference,
+    respectMetadata: working == null && respectMetadata,
   );
-  final remembered = cache?.successful(scope, song, preference: preference);
-  final supported = QualityPolicy.attempts(
-    song,
-    preference,
-    respectMetadata: false,
-  ).toSet();
-  final candidates = [
-    if (remembered != null && supported.contains(remembered)) remembered,
-    ...planned.where((q) => q != remembered),
-  ];
+  final candidates = [?working, ...planned.where((q) => q != working)];
   Future<PlaybackResource?> tryLocal(String quality) async {
     final local = await localFile?.call(quality);
     if (!isCurrent() || local == null) return null;

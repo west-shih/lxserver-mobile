@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import '../../shared/app_modal.dart';
 
 import '../../app/controller.dart';
-import '../../core/browse_cache.dart';
 import '../../app/theme.dart';
 import '../local_media/local_media_screens.dart';
 import '../player/quality.dart';
@@ -128,22 +127,23 @@ class PersonalCenterScreen extends StatelessWidget {
                         ),
                       ),
                       const Spacer(),
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: const Color(0x22FFFFFF),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          child: Text(
-                            controller.offlineMode ? '离线模式' : '已登录',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
+                      Tooltip(
+                        message: '退出登录 / 切换服务器',
+                        child: TextButton.icon(
+                          onPressed: () => _logout(context),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            backgroundColor: const Color(0x22FFFFFF),
+                            minimumSize: const Size(48, 40),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
                             ),
+                          ),
+                          icon: const Icon(Icons.logout_rounded, size: 16),
+                          label: Text(
+                            controller.offlineMode ? '离线模式' : '已登录',
+                            style: const TextStyle(fontSize: 12),
                           ),
                         ),
                       ),
@@ -192,17 +192,30 @@ class PersonalCenterScreen extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _StorageCard(
-                    title: '缓存设置',
-                    value: audioBytes(media.cacheBytes),
-                    detail: media.cacheLimitMb == 0
-                        ? '自动缓存已关闭'
-                        : '上限 ${media.cacheLimitMb} MB',
-                    icon: Icons.storage_rounded,
-                    color: lxGreen,
-                    onTap: () => Navigator.push(
-                      context,
-                      browseRoute(CacheSettingsScreen(controller: controller)),
+                  child: BrowseCacheUsage(
+                    controller: controller,
+                    builder: (context, browseBytes, refresh) => _StorageCard(
+                      title: '缓存设置',
+                      value: browseBytes == null
+                          ? '统计中…'
+                          : audioBytes(
+                              media.cacheBytes +
+                                  media.cacheInProgressBytes +
+                                  browseBytes +
+                                  controller.player.cache.storageBytes,
+                            ),
+                      detail: '音频、浏览与播放偏好',
+                      icon: Icons.storage_rounded,
+                      color: lxGreen,
+                      onTap: () async {
+                        await Navigator.push(
+                          context,
+                          browseRoute(
+                            CacheSettingsScreen(controller: controller),
+                          ),
+                        );
+                        refresh();
+                      },
                     ),
                   ),
                 ),
@@ -217,6 +230,9 @@ class PersonalCenterScreen extends StatelessWidget {
                 children: [
                   ListTile(
                     key: const ValueKey('collection-browsing-setting'),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                    minTileHeight: 56,
+                    titleAlignment: ListTileTitleAlignment.center,
                     leading: const Icon(
                       Icons.auto_stories_outlined,
                       color: lxGreen,
@@ -231,6 +247,18 @@ class PersonalCenterScreen extends StatelessWidget {
                           : 0,
                       underline: const SizedBox.shrink(),
                       style: const TextStyle(fontSize: 14, color: lxInk),
+                      selectedItemBuilder: (_) => [
+                        for (final label in [
+                          '连续列表',
+                          for (final size in AppController.collectionPageSizes)
+                            '每页 $size 项',
+                        ])
+                          Container(
+                            width: 110,
+                            alignment: Alignment.centerRight,
+                            child: Text(label),
+                          ),
+                      ],
                       items: [
                         const DropdownMenuItem(value: 0, child: Text('连续列表')),
                         for (final size in AppController.collectionPageSizes)
@@ -257,90 +285,43 @@ class PersonalCenterScreen extends StatelessWidget {
                     ),
                   ),
                   ListTile(
-                    leading: const Icon(
-                      Icons.folder_copy_outlined,
-                      color: lxGreen,
-                    ),
-                    title: const Text('浏览缓存容量'),
-                    subtitle: const Text('页面状态单独保留，不随内容缓存淘汰'),
-                    trailing: DropdownButton<int>(
-                      value: controller.browseLimitMb,
-                      items: [
-                        for (final value in BrowseCache.limitsMb)
-                          DropdownMenuItem(
-                            value: value,
-                            child: Text(
-                              value >= 1024
-                                  ? '${value ~/ 1024} GB'
-                                  : '$value MB',
-                            ),
-                          ),
-                      ],
-                      onChanged: (value) async {
-                        if (value != null) {
-                          await controller.setBrowseLimit(value);
-                        }
-                      },
-                    ),
-                  ),
-                  ListTile(
-                    leading: const Icon(
-                      Icons.cleaning_services_outlined,
-                      color: lxGreen,
-                    ),
-                    title: const Text('清理浏览缓存'),
-                    subtitle: const Text('本地优先、下拉更新；不删除页面位置、下载和音频缓存'),
-                    onTap: () async {
-                      await controller.api.browseCache?.clear();
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('已清理浏览缓存，当前页面保留已显示内容')),
-                        );
-                      }
-                    },
-                  ),
-                  ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 8,
-                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                    minTileHeight: 56,
+                    titleAlignment: ListTileTitleAlignment.center,
                     leading: const Icon(
                       Icons.high_quality_rounded,
                       color: lxGreen,
                     ),
                     title: const Text('首选音质'),
-                    subtitle: ListenableBuilder(
+                    trailing: ListenableBuilder(
                       listenable: controller.player,
-                      builder: (_, _) => Text(
-                        '${AudioQuality.labelOf(controller.player.preferredQuality)} · 用于后续播放',
+                      builder: (_, _) => SizedBox(
+                        height: 48,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              AudioQuality.labelOf(
+                                controller.player.preferredQuality,
+                              ),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: lxInk,
+                              ),
+                            ),
+                            Icon(
+                              Icons.arrow_drop_down,
+                              size: 24,
+                              color: Colors.grey.shade700,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                    trailing: const Icon(Icons.chevron_right_rounded),
                     onTap: () => showPreferredQuality(context, controller),
-                  ),
-                  const Divider(height: 1, indent: 20, endIndent: 20),
-                  ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 8,
-                    ),
-                    leading: const Icon(
-                      Icons.manage_accounts_outlined,
-                      color: lxGreen,
-                    ),
-                    title: const Text('账号与服务器'),
-                    subtitle: const Text('音源与服务端配置在网页端管理'),
-                    isThreeLine: true,
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 28),
-            TextButton.icon(
-              onPressed: () => _logout(context),
-              icon: const Icon(Icons.logout_rounded, size: 20),
-              label: const Text('退出登录 / 切换服务器'),
-              style: TextButton.styleFrom(foregroundColor: lxMuted),
             ),
           ],
         ),

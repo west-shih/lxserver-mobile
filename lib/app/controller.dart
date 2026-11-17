@@ -79,6 +79,9 @@ class AppController extends ChangeNotifier {
 
   int get browseLimitMb =>
       (api.browseCache?.maxBytes ?? 128 * 1024 * 1024) ~/ (1024 * 1024);
+  Future<int> readBrowseCacheBytes() async =>
+      await api.browseCache?.bytes() ?? 0;
+
   Future<void> setBrowseLimit(int value) async {
     if (!BrowseCache.limitsMb.contains(value)) return;
     await store.saveBrowseLimit(value);

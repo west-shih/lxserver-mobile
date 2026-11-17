@@ -372,57 +372,59 @@ class _DiscoveryScreenState extends State<DiscoveryScreen>
                           leading: SongArt(url: playlist.image, size: 56),
                           title: Text(
                             playlist.name,
-                            maxLines: 2,
+                            maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontWeight: FontWeight.w600,
                               fontSize: 14,
                             ),
                           ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Row(
-                                children: [
-                                  MusicBadge(
-                                    playlist.source.label,
-                                    tone: MusicBadge.source(playlist.source),
-                                  ),
-                                  if (playlist.author.isNotEmpty ||
-                                      playlist.count.isNotEmpty) ...[
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: Text(
-                                        [
-                                              playlist.author,
-                                              if (playlist.count.isNotEmpty)
-                                                '${playlist.count} 次播放',
-                                            ]
-                                            .where((value) => value.isNotEmpty)
-                                            .join(' · '),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          color: lxMuted,
-                                          fontSize: 11,
-                                        ),
-                                      ),
+                          subtitle: Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Row(
+                              children: [
+                                MusicBadge(
+                                  playlist.source.label,
+                                  tone: MusicBadge.source(playlist.source),
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    [
+                                          playlist.author,
+                                          if (playlist.count.isNotEmpty)
+                                            '${playlist.count} 次播放',
+                                        ]
+                                        .where((value) => value.isNotEmpty)
+                                        .join(' · '),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: lxMuted,
+                                      fontSize: 11,
                                     ),
-                                  ],
-                                ],
-                              ),
-                              if (playlist.metadata.date.isNotEmpty)
-                                Text(
-                                  playlist.metadata.date,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: lxMuted,
-                                    fontSize: 11,
                                   ),
                                 ),
-                            ],
+                                if (playlist.metadata.date.isNotEmpty) ...[
+                                  const SizedBox(width: 8),
+                                  ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 110,
+                                    ),
+                                    child: Text(
+                                      playlist.metadata.date,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.right,
+                                      style: const TextStyle(
+                                        color: lxMuted,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
                           ),
                           onTap: () {
                             final session = c.session;

@@ -1,4 +1,4 @@
-import '../../app/browse_navigation.dart';
+import '../../core/browse_cache.dart';
 
 import 'package:flutter/material.dart';
 
@@ -275,16 +275,6 @@ class DownloadsScreen extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('本机下载'),
-          actions: [
-            IconButton(
-              tooltip: '缓存设置',
-              icon: const Icon(Icons.storage_rounded),
-              onPressed: () => Navigator.push(
-                context,
-                browseRoute(CacheSettingsScreen(controller: controller)),
-              ),
-            ),
-          ],
           bottom: const TabBar(
             tabs: [
               Tab(text: '下载任务'),
@@ -294,7 +284,7 @@ class DownloadsScreen extends StatelessWidget {
         ),
         body: SafeArea(
           child: ListenableBuilder(
-            listenable: media,
+            listenable: Listenable.merge([media, controller]),
             builder: (context, _) => TabBarView(
               children: [
                 media.jobs.isEmpty
@@ -501,100 +491,418 @@ class _DownloadTile extends StatelessWidget {
   }
 }
 
+/// Measures browsing files off the build path and refreshes after settings changes.
+class BrowseCacheUsage extends StatefulWidget {
+  const BrowseCacheUsage({
+    super.key,
+    required this.controller,
+    required this.builder,
+  });
+  final AppController controller;
+  final Widget Function(BuildContext, int?, VoidCallback) builder;
+  @override
+  State<BrowseCacheUsage> createState() => _BrowseCacheUsageState();
+}
+
+class _BrowseCacheUsageState extends State<BrowseCacheUsage> {
+  int? bytes;
+  int version = 0;
+  @override
+  void initState() {
+    super.initState();
+    refresh();
+  }
+
+  @override
+  void didUpdateWidget(covariant BrowseCacheUsage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    refresh();
+  }
+
+  Future<void> refresh() async {
+    final current = ++version;
+    final value = await widget.controller.readBrowseCacheBytes();
+    if (mounted && current == version) setState(() => bytes = value);
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(context, bytes, refresh);
+}
+
 class CacheSettingsScreen extends StatelessWidget {
   const CacheSettingsScreen({super.key, required this.controller});
   final AppController controller;
+
+  Future<void> _resetPreferences(
+    BuildContext context,
+    VoidCallback refresh,
+  ) async {
+    final session = controller.session;
+    if (session == null) return;
+    final confirmed = await showAppDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('重置播放偏好？'),
+        content: const Text(
+          '清除当前账号在此服务器记住的歌曲音质档位。下次播放将按默认音质选择；当前播放、默认音质、队列和本机文件保持不变。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialog, true),
+            child: const Text('重置'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || controller.session != session) return;
+    await controller.player.cache.resetTrackChoices(session);
+    refresh();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('已重置播放偏好')));
+    }
+  }
+
+  Future<void> _clear(
+    BuildContext context,
+    bool audio,
+    VoidCallback refresh,
+  ) async {
+    try {
+      if (audio) {
+        await controller.localMedia.clearCache();
+      } else {
+        await controller.api.browseCache?.clear();
+      }
+      refresh();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              audio ? '缓存已清理，当前播放占用的文件在切歌后清理' : '已清理浏览缓存，当前页面保留已显示内容',
+            ),
+          ),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('缓存未能清理，请重试')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final media = controller.localMedia;
     return Scaffold(
-      appBar: AppBar(title: const Text('缓存与存储')),
+      appBar: AppBar(title: const Text('缓存设置')),
       body: SafeArea(
         child: ListenableBuilder(
-          listenable: media,
-          builder: (context, _) => ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              Text(
-                audioBytes(media.cacheBytes + media.cacheInProgressBytes),
-                style: const TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const Text('本机音频缓存', style: TextStyle(color: lxMuted)),
-              const SizedBox(height: 24),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('自动缓存上限'),
-                trailing: DropdownButton<int>(
-                  borderRadius: BorderRadius.circular(12),
-                  dropdownColor: Colors.white,
-                  value: media.cacheLimitMb,
-                  items: [
-                    for (final value in LocalMediaController.cacheLimitsMb)
-                      DropdownMenuItem(
-                        value: value,
-                        child: Text(
-                          value == 0
-                              ? '关闭'
-                              : value >= 1024
-                              ? '${value ~/ 1024} GB'
-                              : '$value MB',
+          listenable: Listenable.merge([media, controller]),
+          builder: (context, _) => BrowseCacheUsage(
+            controller: controller,
+            builder: (context, browseBytes, refresh) {
+              final audio = media.cacheBytes + media.cacheInProgressBytes;
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+                children: [
+                  const Text(
+                    '缓存总占用',
+                    style: TextStyle(color: lxMuted, fontSize: 13),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    browseBytes == null
+                        ? '统计中…'
+                        : audioBytes(
+                            audio +
+                                browseBytes +
+                                controller.player.cache.storageBytes,
+                          ),
+                    key: const ValueKey('cache-total-usage'),
+                    style: const TextStyle(
+                      fontSize: 34,
+                      fontWeight: FontWeight.w700,
+                      color: lxInk,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  _CacheCard(
+                    title: '音频缓存',
+                    icon: Icons.music_note_outlined,
+                    usage: audioBytes(audio),
+                    description: '播放时自动缓存，按最近使用情况清理',
+                    capacityLabel: '自动缓存上限',
+                    limit: media.cacheLimitMb,
+                    limits: LocalMediaController.cacheLimitsMb,
+                    onLimit: (value) async {
+                      await media.setCacheLimit(value);
+                      refresh();
+                    },
+                    clearLabel: '清空音频缓存',
+                    onClear: () => _clear(context, true, refresh),
+                  ),
+                  const SizedBox(height: 16),
+                  _CacheCard(
+                    title: '浏览缓存',
+                    icon: Icons.layers_outlined,
+                    usage: browseBytes == null
+                        ? '统计中…'
+                        : audioBytes(browseBytes),
+                    description: '保存封面和浏览内容，让页面打开更快',
+                    capacityLabel: '浏览缓存容量',
+                    limit: controller.browseLimitMb,
+                    limits: BrowseCache.limitsMb,
+                    onLimit: (value) async {
+                      await controller.setBrowseLimit(value);
+                      refresh();
+                    },
+                    clearLabel: '清理浏览缓存',
+                    onClear: () => _clear(context, false, refresh),
+                  ),
+                  const SizedBox(height: 16),
+                  Material(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 6,
+                      ),
+                      leading: const _CacheIcon(Icons.tune_rounded),
+                      minLeadingWidth: 40,
+                      horizontalTitleGap: 12,
+                      titleAlignment: ListTileTitleAlignment.center,
+                      title: const _CacheTitle(
+                        title: '播放偏好',
+                        description: '记住每首歌成功使用的音质档位。',
+                      ),
+                      trailing: TextButton(
+                        onPressed: () => _resetPreferences(context, refresh),
+                        child: const Text('重置'),
+                      ),
+                    ),
+                  ),
+                  if (media.storageError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: Text(
+                        media.storageError!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
                         ),
                       ),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) media.setCacheLimit(value);
-                  },
-                ),
-              ),
-              const Text(
-                '按最近使用自动清理。主动下载单独保存，不计入缓存上限，也不会随清缓存删除。',
-                style: TextStyle(color: lxMuted, fontSize: 12, height: 1.6),
-              ),
-              const SizedBox(height: 20),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.cleaning_services_rounded),
-                label: const Text('清空音频缓存'),
-                onPressed: () async {
-                  try {
-                    await media.clearCache();
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('缓存已清理，当前播放占用的文件在切歌后清理')),
-                      );
-                    }
-                  } on ApiFailure catch (e) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context)
-                          .showSnackBar(SnackBar(content: Text(e.message)));
-                    }
-                  }
-                },
-              ),
-              const Divider(height: 36),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('本机下载'),
-                subtitle: Text(
-                  '${media.downloads.length} 个文件 · ${audioBytes(media.downloads.fold(0, (n, f) => n + f.bytes))}',
-                ),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () => Navigator.push(
-                  context,
-                  browseRoute(DownloadsScreen(controller: controller)),
-                ),
-              ),
-              if (media.storageError != null)
-                Text(
-                  media.storageError!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-            ],
+                    ),
+                ],
+              );
+            },
           ),
         ),
       ),
     );
   }
+}
+
+class _CacheIcon extends StatelessWidget {
+  const _CacheIcon(this.icon);
+  final IconData icon;
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(9),
+    decoration: BoxDecoration(
+      color: const Color(0xFFE8F7F1),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Icon(icon, size: 22, color: lxGreen),
+  );
+}
+
+class _CacheTitle extends StatelessWidget {
+  const _CacheTitle({required this.title, required this.description});
+  final String title, description;
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+    crossAxisAlignment: WrapCrossAlignment.center,
+    children: [
+      Text(
+        title,
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+      ),
+      IconButton(
+        tooltip: '$title说明',
+        icon: const Icon(Icons.info_outline_rounded, size: 16, color: lxMuted),
+        padding: const EdgeInsets.all(6),
+        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+        visualDensity: VisualDensity.compact,
+        onPressed: () => showAppDialog<void>(
+          context: context,
+          builder: (dialog) => AlertDialog(
+            title: Text(title),
+            content: Text(description),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialog),
+                child: const Text('知道了'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+class _CacheCard extends StatefulWidget {
+  const _CacheCard({
+    required this.title,
+    required this.icon,
+    required this.usage,
+    required this.description,
+    required this.capacityLabel,
+    required this.limit,
+    required this.limits,
+    required this.onLimit,
+    required this.clearLabel,
+    required this.onClear,
+  });
+  final String title, usage, description, capacityLabel, clearLabel;
+  final IconData icon;
+  final int limit;
+  final List<int> limits;
+  final Future<void> Function(int) onLimit;
+  final Future<void> Function() onClear;
+  @override
+  State<_CacheCard> createState() => _CacheCardState();
+}
+
+class _CacheCardState extends State<_CacheCard> {
+  bool busy = false;
+  Future<void> run(Future<void> Function() action) async {
+    if (busy) return;
+    setState(() => busy = true);
+    try {
+      await action();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('操作失败，请重试')));
+      }
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(20),
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _CacheIcon(widget.icon),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 3,
+                child: _CacheTitle(
+                  title: widget.title,
+                  description: widget.description,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 2,
+                child: Text(
+                  widget.usage,
+                  textAlign: TextAlign.right,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: lxInk,
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: widget.clearLabel,
+                onPressed: busy ? null : () => run(widget.onClear),
+                icon: const Icon(Icons.cleaning_services_outlined, size: 20),
+                style: IconButton.styleFrom(
+                  foregroundColor: lxGreen,
+                  padding: const EdgeInsets.all(8),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Divider(height: 1, color: Color(0xFFEEF2EF)),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  widget.capacityLabel,
+                  style: const TextStyle(fontSize: 14),
+                ),
+              ),
+              DropdownButton<int>(
+                value: widget.limit,
+                underline: const SizedBox.shrink(),
+                borderRadius: BorderRadius.circular(12),
+                dropdownColor: Colors.white,
+                style: const TextStyle(fontSize: 14, color: lxInk),
+                selectedItemBuilder: (context) => [
+                  for (final limit in widget.limits)
+                    Container(
+                      width:
+                          70 * MediaQuery.textScalerOf(context).scale(14) / 14,
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        limit >= 1024 ? '${limit ~/ 1024} GB' : '$limit MB',
+                      ),
+                    ),
+                ],
+                icon: const SizedBox(
+                  width: 40,
+                  child: Icon(
+                    Icons.expand_more_rounded,
+                    color: lxMuted,
+                    size: 20,
+                  ),
+                ),
+                items: [
+                  for (final limit in widget.limits)
+                    DropdownMenuItem(
+                      value: limit,
+                      child: Text(
+                        limit == 0
+                            ? '关闭'
+                            : limit >= 1024
+                            ? '${limit ~/ 1024} GB'
+                            : '$limit MB',
+                      ),
+                    ),
+                ],
+                onChanged: busy
+                    ? null
+                    : (value) {
+                        if (value != null) run(() => widget.onLimit(value));
+                      },
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
 }

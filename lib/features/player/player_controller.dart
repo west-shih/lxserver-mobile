@@ -47,7 +47,6 @@ class PlayerController extends ChangeNotifier {
   Future<void> setPreferredQuality(String value) async {
     if (AudioQuality.find(value) == null || value == preferredQuality) return;
     preferredQuality = value;
-    cache.clear(keepConfiguration: true);
     notifyListeners();
     try {
       await onQualityChanged?.call(value);
@@ -239,7 +238,14 @@ class PlayerController extends ChangeNotifier {
     final previousDuration = duration;
     _needsResume = false;
     _session = session;
-    _playbackPreference = quality ?? preferredQuality;
+    _playbackPreference =
+        quality ??
+        cache.successful(
+          cache.scope(session),
+          song,
+          preference: preferredQuality,
+        ) ??
+        preferredQuality;
     if (songs != null) {
       _queue
         ..clear()
@@ -425,6 +431,7 @@ class PlayerController extends ChangeNotifier {
       }
       qualityNotice = null;
       _applyResource(resource);
+      cache.success(cacheScope, song, resource, preference: preferredQuality);
       _needsResume = false;
       error = null;
       if (resume) {

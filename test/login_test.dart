@@ -5,6 +5,32 @@ import 'package:lxserver_mobile/app/controller.dart';
 import 'package:lxserver_mobile/core/lx_api.dart';
 
 void main() {
+  for (final size in [
+    const Size(360, 640),
+    const Size(393, 852),
+    const Size(320, 568),
+  ]) {
+    testWidgets('Login fits portrait $size without scrolling', (tester) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final c = AppController()..restoring = false;
+      await tester.pumpWidget(LxApp(controller: c));
+      await tester.pumpAndSettle();
+      final scroll = tester.state<ScrollableState>(
+        find.byType(Scrollable).first,
+      );
+      expect(scroll.position.maxScrollExtent, 0);
+
+      await tester.tap(find.byType(FilledButton));
+      await tester.pumpAndSettle();
+      expect(scroll.position.maxScrollExtent, 0);
+      expect(tester.takeException(), null);
+      await tester.pumpWidget(const SizedBox());
+      c.dispose();
+    });
+  }
   testWidgets('Login validates required fields without contacting a server', (
     tester,
   ) async {

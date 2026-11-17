@@ -61,7 +61,8 @@ class PlaybackCache {
 
   String? successful(String scope, Song song, {String? preference}) {
     final r = _history[_key(scope, song)];
-    if (preference != null && r?['preference'] != preference) return null;
+    // Legacy records without a preference binding were not confirmed track choices.
+    if (preference != null && r?['preference'] == null) return null;
     return r?['quality'] as String?;
   }
 
@@ -146,7 +147,7 @@ class PlaybackCache {
       final data = jsonDecode(value) as Map;
       _configuration = data['configuration'] as String;
       final history = data['history'] as Map;
-      for (final e in history.entries.take(200)) {
+      for (final e in history.entries) {
         final r = Map<String, dynamic>.from(e.value as Map);
         if (r['failed'] != null && r['failed'] is! Map) {
           throw const FormatException('Invalid playback history');
@@ -170,16 +171,10 @@ class PlaybackCache {
   }
 
   void _persist() {
-    while (_history.length > 200) {
-      _history.remove(_history.keys.first);
-    }
     while (_urls.length > 100) {
       _urls.remove(_urls.keys.first);
     }
-    final snapshot = jsonEncode({
-      'configuration': _configuration,
-      'history': _history,
-    });
+    final snapshot = _snapshot();
     _writes = _writes
         .then((_) async {
           await saveHistory?.call(snapshot);
@@ -187,5 +182,33 @@ class PlaybackCache {
         .catchError((Object _) {});
   }
 
+  String _snapshot() =>
+      jsonEncode({'configuration': _configuration, 'history': _history});
+
+  /// Serialized preference data, excluding platform secure-storage overhead.
+  int get storageBytes => utf8.encode(_snapshot()).length;
+
   Future<void> flush() => _writes;
+
+  bool _belongsTo(String key, Session session) {
+    try {
+      final identity = jsonDecode(key) as List;
+      final scope = jsonDecode(identity.first as String) as List;
+      return scope[0] == session.server.toString() &&
+          scope[1] == session.username;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  int trackCount(Session session) =>
+      _history.keys.where((key) => _belongsTo(key, session)).length;
+
+  Future<void> resetTrackChoices(Session session) async {
+    _history.removeWhere((key, _) => _belongsTo(key, session));
+    _failures.removeWhere((key, _) => _belongsTo(key, session));
+    _urls.removeWhere((key, _) => _belongsTo(key, session));
+    _persist();
+    await flush();
+  }
 }

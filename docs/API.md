@@ -248,3 +248,10 @@
 客户端请求收敛与浏览缓存第一版已实现，范围和数据生命周期见 ARCHITECTURE.md“浏览缓存与请求收敛”。全部沿用既有接口，不修改上游。显式下拉刷新仅保证请求 LXServer，不保证其绕过服务端自身缓存；HTTP 5xx/429 停止播放解析尝试，不等于已经取得原始网易校验码。跨重启磁盘复用、离线缓存命中和请求次数通过 Mock/临时目录测试，部署风控归因与真实设备流量仍待核实。
 
 浏览软过期是客户端策略，沿用现有接口，不假设 ETag、服务端快照版本或缓存绕过参数。已只读校验 v2.2.0 / 13865b82 基线；server.ts 的 artistDetail、artistAlbums、artistSongs、albumSongs 调用链仍按原契约，artistSongs 仍可能在服务端全量抓取，客户端普通翻页不触发过期重取。推荐/分类 1 小时，搜索/外部歌单/歌曲列表 24 小时，歌手基本资料 7 天；页面进入更新成功后使同查询旧后续页失效，失败保留旧缓存。Mock 时间推进验证不代表真实部署时效或请求量已测。
+
+### 打开分享歌单
+
+固定 v2.2.0 基线 `src/server/server.ts` 的 GET `/api/music/songList/detail` 将 source/id/page 传入各平台 `songList.getListDetail`。客户端保留输入，通过 query 编码发送，不自行猜测短链解析接口；使用返回的 info.name/img/author 等展示详情，收藏复用既有流程。
+酷狗 `src/modules/utils/musicSdk/kg/songList.js:getListDetail` 将纯数字交给 getUserListDetailByCode；普通分享 URL 交给 getUserListDetail，`id_` 前缀为内部 special ID。网页提示不支持用歌单 ID 或概念版链接打开。基线 changelog 虽记载 #483 酷狗码导入修复，不代表所有链接均可用，也不能证明用户部署的具体失败原因。需要失败链接类型、错误及部署 commit 进一步核实；本次仅源码核对和 Mock 验证，未修改服务端。
+
+2026-11-17 酷狗分享只读排查：使用用户提供的酷狗码与普通版 `m.kugou.com/songlist/gcid_…/` 链接，在本机用 Node fetch 按固定基线的方法与签名参数请求公开酷狗接口（未运行完整 LXServer request 适配层，未请求用户部署，未持久化个人输入/响应）。码的 `/command/` 与链接的 `/v1/songlist/batch_decode` 均 HTTP 200、业务码 0；后续 `/api/v5/special/info_v2` 同样成功；两路最终在 `/api/v5/special/song_v2` 收到 HTTP 200、业务码 20028。因此已定位本机直连时的失败阶段为歌曲列表获取，不能归因于输入格式或 gcid 解码失败；20028 的具体含义及部署侧是否同因仍待确认。基线 createHttpFetch 对非零业务码重试，最终可能只暴露 try max num，丢失原始错误。客户端不绕过服务端直接读取酷狗，不修改上游参考检出。

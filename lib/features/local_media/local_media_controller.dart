@@ -111,7 +111,7 @@ class LocalMediaController extends ChangeNotifier {
   final Set<String> _pinned = {};
   Session? _session;
   String _scope = '';
-  static const cacheLimitsMb = [0, 256, 512, 1024, 2048, 3072, 4096, 5120];
+  static const cacheLimitsMb = [256, 512, 1024, 2048, 3072, 4096, 5120];
   int cacheLimitMb = 2048;
   int _cacheEpoch = 0;
   AudioTransfer? _cacheTransfer;
@@ -204,6 +204,7 @@ class LocalMediaController extends ChangeNotifier {
 
   Future<void> initialize() => _ready ??= _initialize();
   Future<void> _initialize() async {
+    var migrateDisabledCache = false;
     try {
       _root = Directory('${(await _directory()).path}/lx_audio');
       await Directory('${_root!.path}/cache').create(recursive: true);
@@ -214,6 +215,9 @@ class LocalMediaController extends ChangeNotifier {
         final limit = value['cacheLimitMb'];
         if (limit is int && cacheLimitsMb.contains(limit)) {
           cacheLimitMb = limit;
+        } else if (limit == 0) {
+          cacheLimitMb = 2048;
+          migrateDisabledCache = true;
         }
         for (final row in value['files'] as List? ?? []) {
           try {
@@ -262,6 +266,7 @@ class LocalMediaController extends ChangeNotifier {
           artworkKey(f.scope, f.song),
       });
       await _trim();
+      if (migrateDisabledCache) _save();
     } catch (_) {
       storageError = '本机存储暂不可用，在线播放仍可使用';
     }

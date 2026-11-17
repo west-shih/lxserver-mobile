@@ -133,44 +133,43 @@ void main() {
     },
   );
 
-  testWidgets(
-    'Playlist date has its own final line; undated cards retain their single metadata line',
-    (tester) async {
-      final c = AppController(
-        api: LxApi(client: MockClient((r) async => response([]))),
-      )..session = session;
-      c.discovery.playlists = [
-        PlaylistSummary({
-          'id': 'dated',
-          'name': 'Dated',
-          'author': 'Creator',
-          'play_count': '10',
-          'time': '2026-01-02',
-        }, MusicSource.wy),
-        PlaylistSummary({
-          'id': 'undated',
-          'name': 'Undated',
-          'author': 'Another',
-          'play_count': '20',
-        }, MusicSource.wy),
-      ];
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(body: DiscoveryScreen(controller: c)),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('Creator · 10 次播放'), findsOneWidget);
-      expect(find.text('2026-01-02'), findsOneWidget);
-      expect(
-        tester.getTopLeft(find.text('2026-01-02')).dy,
-        greaterThan(tester.getTopLeft(find.text('Creator · 10 次播放')).dy),
-      );
-      expect(find.text('Another · 20 次播放'), findsOneWidget);
-      expect(find.textContaining('null'), findsNothing);
-      expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox());
-      c.dispose();
-    },
-  );
+  testWidgets('Playlist date shares the metadata line at the right', (
+    tester,
+  ) async {
+    final c = AppController(
+      api: LxApi(client: MockClient((r) async => response([]))),
+    )..session = session;
+    c.discovery.playlists = [
+      PlaylistSummary({
+        'id': 'dated',
+        'name': 'Dated',
+        'author': 'Creator',
+        'play_count': '10',
+        'time': '2026-01-02',
+      }, MusicSource.wy),
+      PlaylistSummary({
+        'id': 'undated',
+        'name': 'Undated',
+        'author': 'Another',
+        'play_count': '20',
+      }, MusicSource.wy),
+    ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: DiscoveryScreen(controller: c)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Creator · 10 次播放'), findsOneWidget);
+    expect(find.text('2026-01-02'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('2026-01-02')).dy,
+      closeTo(tester.getTopLeft(find.text('Creator · 10 次播放')).dy, 1),
+    );
+    expect(find.text('Another · 20 次播放'), findsOneWidget);
+    expect(find.textContaining('null'), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    c.dispose();
+  });
 }

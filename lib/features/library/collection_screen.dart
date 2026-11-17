@@ -1,3 +1,5 @@
+import '../../shared/compact_search.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../shared/remembered_page.dart';
@@ -772,34 +774,28 @@ class _CollectionScreenState extends State<CollectionScreen>
           appBar: AppBar(
             automaticallyImplyLeading: !_searching,
             title: _searching
-                ? TextField(
-                    key: const ValueKey('collection-search'),
-                    controller: _search,
-                    focusNode: _searchFocus,
-                    style: const TextStyle(fontSize: 14),
-                    onChanged: (_) => setState(() => _visiblePage = 0),
-                    decoration: InputDecoration(
-                      hintText: '搜索歌单内歌曲',
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
+                ? SizedBox(
+                    height: compactSearchHeight(context),
+                    child: TextField(
+                      key: const ValueKey('collection-search'),
+                      controller: _search,
+                      focusNode: _searchFocus,
+                      textAlignVertical: TextAlignVertical.center,
+                      style: const TextStyle(fontSize: 14),
+                      onChanged: (_) => setState(() => _visiblePage = 0),
+                      decoration: compactSearchDecoration(
+                        hintText: '搜索歌单内歌曲',
+                        suffixIcon: query.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: '清除歌单搜索',
+                                icon: const Icon(Icons.close_rounded, size: 20),
+                                onPressed: () {
+                                  _search.clear();
+                                  setState(() => _visiblePage = 0);
+                                },
+                              ),
                       ),
-                      prefixIcon: const Padding(
-                        padding: EdgeInsets.only(left: 12, right: 8),
-                        child: Icon(Icons.search_rounded, size: 18),
-                      ),
-                      prefixIconConstraints: const BoxConstraints(minWidth: 38),
-                      suffixIcon: query.isEmpty
-                          ? null
-                          : IconButton(
-                              tooltip: '清除歌单搜索',
-                              icon: const Icon(Icons.close_rounded, size: 18),
-                              onPressed: () {
-                                _search.clear();
-                                setState(() => _visiblePage = 0);
-                              },
-                            ),
                     ),
                   )
                 : _selecting

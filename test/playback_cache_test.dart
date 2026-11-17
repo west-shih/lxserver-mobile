@@ -1,9 +1,48 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lxserver_mobile/core/lx_api.dart';
 import 'package:lxserver_mobile/features/player/playback_cache.dart';
 import 'package:lxserver_mobile/features/player/quality.dart';
 
 void main() {
+  test('Track choices keep more than 200 entries and reset only the chosen account', () async {
+    String? saved;
+    final cache = PlaybackCache(saveHistory: (value) async => saved = value);
+    final account = Session(
+      Uri.parse('https://example.test'),
+      'fixture',
+      'fixture-token',
+    );
+    final other = Session(account.server, 'other', 'other-token');
+    final resource = PlaybackResource(
+      Uri.parse('https://media.test/audio'),
+      'atmos',
+      'atmos',
+    );
+    for (var i = 0; i < 205; i++) {
+      cache.success(
+        cache.scope(account),
+        Song({'songmid': '$i'}, MusicSource.tx),
+        resource,
+        preference: 'flac',
+      );
+    }
+    cache.success(
+      cache.scope(other),
+      Song({'songmid': 'other'}, MusicSource.tx),
+      resource,
+      preference: 'flac',
+    );
+    await cache.flush();
+    expect(cache.storageBytes, utf8.encode(saved!).length);
+    final restored = PlaybackCache()..restore(saved);
+    expect(restored.trackCount(account), 205);
+    await restored.resetTrackChoices(account);
+    expect(restored.trackCount(account), 0);
+    expect(restored.trackCount(other), 1);
+  });
+
   test(
     'Recent failures suppress repeated probing, manual retry bypasses it',
     () async {

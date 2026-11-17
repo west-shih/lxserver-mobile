@@ -277,6 +277,23 @@ void main() {
     expect(m.cacheBytes, 0);
     await close(m);
   });
+  test('Legacy disabled audio cache migrates to two GB and persists', () async {
+    final directory = Directory('${root.path}/lx_audio');
+    await directory.create(recursive: true);
+    final index = File('${directory.path}/index.json');
+    await index.writeAsString(
+      jsonEncode({'cacheLimitMb': 0, 'files': [], 'jobs': []}),
+    );
+    final m = media();
+    await m.initialize();
+    await m.flush();
+    expect(m.cacheLimitMb, 2048);
+    expect(LocalMediaController.cacheLimitsMb, isNot(contains(0)));
+    expect(jsonDecode(await index.readAsString())['cacheLimitMb'], 2048);
+    await m.setCacheLimit(0);
+    expect(m.cacheLimitMb, 2048);
+    await close(m);
+  });
   test('Promoting a cache to download avoids another transfer and clearing cache preserves it', () async {
     final m = media();
     await m.activate(s);
@@ -300,7 +317,7 @@ void main() {
     await close(m);
     final restored = media();
     await restored.activate(s);
-    expect(restored.cacheLimitMb, 0);
+    expect(restored.cacheLimitMb, 2048);
     expect(restored.downloads.length, 1);
     expect((await restored.localResource(s, song, 'flac'))!.localFile, true);
     await restored.activate(Session(s.server, 'other-user', 'other-token'));
