@@ -1,3 +1,6 @@
+import '../../app/browse_navigation.dart';
+import '../../shared/remembered_page.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../shared/app_modal.dart';
@@ -20,7 +23,27 @@ class DiscoveryScreen extends StatefulWidget {
   State<DiscoveryScreen> createState() => _DiscoveryScreenState();
 }
 
-class _DiscoveryScreenState extends State<DiscoveryScreen> {
+class _DiscoveryScreenState extends State<DiscoveryScreen>
+    with RememberedPage<DiscoveryScreen> {
+  @override
+  AppController get browseApp => widget.controller;
+  @override
+  String get browseKey => 'home.discovery';
+  @override
+  ScrollController get browseScroll => _scroll;
+  @override
+  Map<String, dynamic> saveView() => {
+    'page': _visiblePage,
+    'queryKey': _queryKey,
+  };
+  @override
+  void restoreView(Map<String, dynamic> value) {
+    _visiblePage = value['page'] is int
+        ? (value['page'] as int).clamp(0, 1000000)
+        : 0;
+    _queryKey = value['queryKey'] is String ? value['queryKey'] as String : '';
+  }
+
   final _scroll = ScrollController();
   String? _queryKey, _filledKey;
   int _visiblePage = 0;
@@ -202,12 +225,12 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
         children: [
           Expanded(
             child: RefreshIndicator(
-              onRefresh: () async {
+              onRefresh: () => c.api.refreshBrowse(() async {
                 await c.refreshSources(reloadResults: false);
                 if (c.session != null) {
                   await d.load(c.session!, categories: !d.aggregate);
                 }
-              },
+              }),
               child: CustomScrollView(
                 key: const PageStorageKey('playlist-results-scroll'),
                 controller: _scroll,
@@ -406,8 +429,8 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                             if (session == null) return;
                             Navigator.push(
                               context,
-                              MaterialPageRoute<void>(
-                                builder: (_) => CollectionScreen(
+                              browseRoute(
+                                CollectionScreen(
                                   controller: c,
                                   collection: MusicCollection(
                                     playlist.id,

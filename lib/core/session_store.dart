@@ -5,6 +5,9 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'lx_api.dart';
 
 class SessionStore {
+  Future<String?> readBrowseLimit() => _storage.read(key: 'lx.browseLimitMb');
+  Future<void> saveBrowseLimit(int value) =>
+      _storage.write(key: 'lx.browseLimitMb', value: '$value');
   Future<Map<String, dynamic>> readBrowseState() async {
     try {
       final value = jsonDecode(

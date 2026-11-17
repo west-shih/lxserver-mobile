@@ -11,6 +11,23 @@ class EntityDetailController extends ChangeNotifier {
     this.entity,
     this.onUnauthorized,
   );
+  Future<Object> _read(
+    Session session,
+    String path, {
+    Map<String, String>? query,
+  }) {
+    final version = _version;
+    final albumVersion = _albumVersion;
+    return api.browseQuery(
+      () =>
+          !_disposed &&
+          (path.endsWith('artistAlbums')
+              ? albumVersion == _albumVersion
+              : version == _version),
+      () => api.read(session, path, query: query),
+    );
+  }
+
   final LxApi api;
   final Session session;
   final VoidCallback onUnauthorized;
@@ -22,6 +39,30 @@ class EntityDetailController extends ChangeNotifier {
   String? error, infoError, albumError;
   int _version = 0, _albumVersion = 0, _page = 0;
   bool _disposed = false;
+  bool restoredSnapshot = false;
+  Map<String, dynamic> snapshot() => {
+    'entity': entity.raw,
+    'songs': songs.map((e) => e.raw).toList(),
+    'albums': albums.map((e) => e.raw).toList(),
+    'order': order,
+    'albumPage': _page,
+    'moreAlbums': moreAlbums,
+  };
+  void restoreSnapshot(Map value) {
+    if (value['entity'] is Map<String, dynamic>) {
+      entity = entity.merge(value['entity']);
+    }
+    songs = parseSongs(value['songs'] ?? [], fallback: entity.source);
+    albums = (value['albums'] as List? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map((e) => MusicEntity(e, entity.source, false))
+        .toList();
+    order = value['order'] == 'time' ? 'time' : 'hot';
+    _page = int.tryParse('${value['albumPage']}') ?? 0;
+    moreAlbums = value['moreAlbums'] == true;
+    restoredSnapshot = true;
+  }
+
   Map<String, String> get query => {
     'id': entity.id,
     'source': entity.source.name,
@@ -29,6 +70,7 @@ class EntityDetailController extends ChangeNotifier {
   Future<void> load({String? sort}) async {
     if (sort != null) order = sort;
     final version = ++_version;
+    final retained = api.refreshingBrowse ? List.of(songs) : null;
     songs = [];
     loading = true;
     error = null;
@@ -42,7 +84,7 @@ class EntityDetailController extends ChangeNotifier {
     }
     Future<void> info() async {
       try {
-        final data = await api.read(
+        final data = await _read(
           session,
           '/api/music/artistDetail',
           query: query,
@@ -61,7 +103,7 @@ class EntityDetailController extends ChangeNotifier {
 
     Future<void> tracks() async {
       try {
-        final data = await api.read(
+        final data = await _read(
           session,
           entity.artist ? '/api/music/artistSongs' : '/api/music/albumSongs',
           query: {...query, if (entity.artist) 'order': order},
@@ -87,6 +129,7 @@ class EntityDetailController extends ChangeNotifier {
 
     await Future.wait([if (entity.artist) info(), tracks()]);
     if (version == _version) {
+      if (error != null && retained != null) songs = retained;
       loading = false;
       notifyListeners();
     }
@@ -107,7 +150,7 @@ class EntityDetailController extends ChangeNotifier {
     albumError = null;
     notifyListeners();
     try {
-      final data = await api.read(
+      final data = await _read(
         session,
         '/api/music/artistAlbums',
         query: {...query, 'page': '${_page + 1}'},

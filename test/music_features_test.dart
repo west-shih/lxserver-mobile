@@ -83,6 +83,31 @@ void main() {
       expect(Lyrics.parse(result).lines.single.text, 'fixture');
     },
   );
+  test(
+    'QQ lyric GET resolves MID instead of forwarding a string songId',
+    () async {
+      for (final source in [MusicSource.tx, MusicSource.wy]) {
+        final api = LxApi(
+          client: MockClient((request) async {
+            expect(request.url.queryParameters['songmid'], 'fixtureSongMid');
+            if (source == MusicSource.tx) {
+              expect(
+                request.url.queryParameters.containsKey('songId'),
+                isFalse,
+              );
+            } else {
+              expect(request.url.queryParameters['songId'], '123456');
+            }
+            return jsonResponse({'lyric': '[00:01.00]fixture'});
+          }),
+        );
+        await api.lyrics(
+          session,
+          Song({'songmid': 'fixtureSongMid', 'songId': 123456}, source),
+        );
+      }
+    },
+  );
   test('Availability unions ready sources and subtracts per-source disabled platforms', () {
     final result = SourceAvailability.parse([
       {

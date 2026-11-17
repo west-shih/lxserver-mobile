@@ -103,7 +103,8 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                       ),
                     )
                   : RefreshIndicator(
-                      onRefresh: () => c.load(targetPage: 1),
+                      onRefresh: () =>
+                          c.api.refreshBrowse(() => c.load(targetPage: 1)),
                       child: ListView.separated(
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.all(20),

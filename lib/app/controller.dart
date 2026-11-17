@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart';
 import '../core/lx_api.dart';
 import '../core/session_store.dart';
 import '../core/page_window.dart';
+import '../core/browse_snapshot.dart';
+import '../core/browse_cache.dart';
 import '../features/player/player_controller.dart';
 import '../features/player/playback_cache.dart';
 import '../features/player/playback_resume.dart';
@@ -18,8 +20,11 @@ import '../features/search/entity_search_controller.dart';
 import '../features/search/music_entity.dart';
 
 class AppController extends ChangeNotifier {
-  AppController({LxApi? api, Future<Directory> Function()? mediaDirectory})
-    : api = api ?? LxApi() {
+  AppController({
+    LxApi? api,
+    Future<Directory> Function()? mediaDirectory,
+    BrowseSnapshotStore? browseStore,
+  }) : api = api ?? LxApi() {
     serverFiles = ServerFilesController(this.api, expire);
     localMedia = LocalMediaController(
       this.api,
@@ -36,6 +41,8 @@ class AppController extends ChangeNotifier {
       localMedia: localMedia,
     );
     playbackResume = PlaybackResumeStore(directory: mediaDirectory);
+    browseSnapshot =
+        browseStore ?? BrowseSnapshotStore(directory: mediaDirectory);
     player.addListener(_rememberPlayback);
     serverFiles.addListener(player.refreshQualityAvailability);
     localMedia.addListener(player.refreshQualityAvailability);
@@ -45,9 +52,94 @@ class AppController extends ChangeNotifier {
     entitySearch.addListener(notifyListeners);
     addListener(_scheduleBrowseState);
     discovery.addListener(_scheduleBrowseState);
+    library.addListener(_scheduleBrowseState);
   }
   String songDraft = '', playlistDraft = '';
   int homeTab = 0;
+  late final BrowseSnapshotStore browseSnapshot;
+  final Map<String, Map<String, dynamic>> pageStates = {};
+  List<Map<String, dynamic>> savedRoutes = [];
+  bool restoringRoutes = false;
+  bool _restoredBrowsing = false;
+  Map<String, dynamic> pageState(String key) => pageStates[key] ?? {};
+  void rememberPage(String key, Map<String, dynamic> value) {
+    pageStates.remove(key);
+    pageStates[key] = value;
+    while (pageStates.length > 100) {
+      pageStates.remove(pageStates.keys.first);
+    }
+    _scheduleBrowseState();
+  }
+
+  void rememberRoutes(List<Map<String, dynamic>> routes) {
+    if (restoringRoutes || session == null) return;
+    savedRoutes = routes.take(20).toList();
+    _scheduleBrowseState();
+  }
+
+  int get browseLimitMb =>
+      (api.browseCache?.maxBytes ?? 128 * 1024 * 1024) ~/ (1024 * 1024);
+  Future<void> setBrowseLimit(int value) async {
+    if (!BrowseCache.limitsMb.contains(value)) return;
+    await store.saveBrowseLimit(value);
+    await api.browseCache?.setLimitMb(value);
+    notifyListeners();
+  }
+
+  Map<String, dynamic> _songSearchSnapshot() => {
+    'source': source.name,
+    'aggregate': aggregate,
+    'keyword': keyword,
+    'songs': songs.map((e) => e.raw).toList(),
+    'page': page,
+    'more': hasMore,
+    'revision': searchRevision,
+    'window': _searchWindow.snapshot((s) => s.raw),
+    'buckets': {
+      for (final e in _buckets.entries)
+        e.key.name: e.value.map((s) => s.raw).toList(),
+    },
+    'pages': {for (final e in _pages.entries) e.key.name: e.value},
+    'remaining': _more.map((e) => e.name).toList(),
+  };
+  void _restoreSongSearch(Map value) {
+    MusicSource platform(Object? id) =>
+        MusicSource.values.where((e) => e.name == id).firstOrNull ??
+        MusicSource.wy;
+    source = platform(value['source']);
+    aggregate = value['aggregate'] == true;
+    keyword = '${value['keyword'] ?? ''}';
+    songs = parseSongs(value['songs'] ?? [], fallback: source);
+    page = resultTotal(value['page']) ?? 0;
+    hasMore = value['more'] == true;
+    searchRevision = resultTotal(value['revision']) ?? 0;
+    if (value['window'] is Map) {
+      _searchWindow.restoreSnapshot(
+        value['window'],
+        (data) => Song(data, source),
+      );
+    }
+    _buckets.clear();
+    _pages.clear();
+    _more.clear();
+    if (value['buckets'] is Map) {
+      for (final e in (value['buckets'] as Map).entries) {
+        _buckets[platform(e.key)] = parseSongs(
+          e.value,
+          fallback: platform(e.key),
+        );
+      }
+    }
+    if (value['pages'] is Map) {
+      for (final e in (value['pages'] as Map).entries) {
+        _pages[platform(e.key)] = resultTotal(e.value) ?? 0;
+      }
+    }
+    for (final e in value['remaining'] as List? ?? []) {
+      _more.add(platform(e));
+    }
+  }
+
   Timer? _browseTimer;
   Future<void> _browseWrites = Future.value();
   bool _resumingBrowse = false;
@@ -83,15 +175,39 @@ class AppController extends ChangeNotifier {
       'tagName': discovery.tagName,
       'sort': discovery.sort,
     };
+    final snapshot = {
+      ...value,
+      'pages': pageStates,
+      'routes': savedRoutes,
+      'search': _songSearchSnapshot(),
+      'entitySearch': entitySearch.snapshot(),
+      'discovery': discovery.snapshot(),
+      'library': library.snapshot(),
+      if (availability != null)
+        'availability': {
+          'platforms': availability!.platforms.map((e) => e.name).toList(),
+          'ready': availability!.readyCount,
+        },
+    };
+    final diskWrite = browseSnapshot.write(snapshot);
     return _browseWrites = _browseWrites
-        .then((_) => store.saveBrowseState(value))
+        .then((_) async {
+          await store.saveBrowseState(value);
+          await diskWrite;
+        })
         .catchError((Object _) {});
   }
 
   Future<void> _restoreBrowseState() async {
     final active = session;
     if (active == null) return;
-    final value = await store.readBrowseState();
+    final snapshot = await browseSnapshot.read();
+    final stored = await store.readBrowseState();
+    final value =
+        snapshot['server'] == active.server.toString() &&
+            snapshot['username'] == active.username
+        ? snapshot
+        : stored;
     if (session != active ||
         value['server'] != active.server.toString() ||
         value['username'] != active.username) {
@@ -116,13 +232,53 @@ class AppController extends ChangeNotifier {
     discovery.tag = text('tag');
     discovery.tagName = text('tagName').isEmpty ? '全部分类' : text('tagName');
     discovery.sort = text('sort');
+    if (snapshot['server'] == active.server.toString() &&
+        snapshot['username'] == active.username) {
+      try {
+        if (snapshot['search'] is Map) _restoreSongSearch(snapshot['search']);
+        if (snapshot['entitySearch'] is Map) {
+          entitySearch.restoreSnapshot(snapshot['entitySearch']);
+        }
+        if (snapshot['discovery'] is Map) {
+          discovery.restoreSnapshot(snapshot['discovery']);
+        }
+        if (snapshot['library'] is Map) {
+          library.restoreSnapshot(snapshot['library']);
+        }
+        if (snapshot['pages'] is Map) {
+          pageStates.addAll(
+            Map<String, Map<String, dynamic>>.from(snapshot['pages']),
+          );
+        }
+        savedRoutes = (snapshot['routes'] as List? ?? [])
+            .whereType<Map<String, dynamic>>()
+            .take(20)
+            .toList();
+        if (snapshot['availability'] is Map) {
+          final state = snapshot['availability'] as Map;
+          availability = SourceAvailability(
+            MusicSource.values
+                .where(
+                  (e) => (state['platforms'] as List? ?? []).contains(e.name),
+                )
+                .toList(),
+            resultTotal(state['ready']) ?? 0,
+          );
+        }
+        _restoredBrowsing = true;
+      } catch (_) {
+        pageStates.clear();
+        savedRoutes = [];
+      }
+    }
   }
 
   Future<void> _resumeBrowseResults() async {
     _resumingBrowse = true;
     final active = session;
     try {
-      await refreshSources(reloadResults: false);
+      if (_restoredBrowsing) return;
+      if (!offlineMode) await refreshSources(reloadResults: false);
       if (active == null || session != active) return;
       if (entitySearch.kind == SearchKind.song && keyword.isNotEmpty) {
         await search(keyword);
@@ -144,36 +300,7 @@ class AppController extends ChangeNotifier {
     }
   }
 
-  final Map<String, Future<String>> _artistPortraits = {};
-  Future<void> _portraitQueue = Future.value();
-  Future<String> artistPortrait(MusicEntity entity) {
-    final active = session;
-    if (active == null || !entity.artist || entity.source != MusicSource.wy) {
-      return Future.value(entity.image);
-    }
-    if (!_artistPortraits.containsKey(entity.key) &&
-        _artistPortraits.length >= 100) {
-      _artistPortraits.remove(_artistPortraits.keys.first);
-    }
-    return _artistPortraits.putIfAbsent(entity.key, () {
-      final result = _portraitQueue.then((_) async {
-        if (session != active) return entity.image;
-        try {
-          final data = await api.read(
-            active,
-            '/api/music/artistDetail',
-            query: {'source': entity.source.name, 'id': entity.id},
-          );
-          if (data is Map<String, dynamic>) return entity.merge(data).image;
-        } catch (_) {
-          /* Optional enrichment keeps the list image on failure. */
-        }
-        return entity.image;
-      });
-      _portraitQueue = result.then((_) {});
-      return result;
-    });
-  }
+  Future<String> artistPortrait(MusicEntity entity) async => entity.image;
 
   final LxApi api;
   final store = SessionStore();
@@ -398,6 +525,8 @@ class AppController extends ChangeNotifier {
   Future<void> restore() async {
     Session? saved;
     try {
+      final limit = int.tryParse(await store.readBrowseLimit() ?? '') ?? 128;
+      await api.browseCache?.setLimitMb(limit);
       final selection = await store.readPlatformSelection();
       final savedSource = MusicSource.values
           .where((v) => v.name == selection['search'])
@@ -453,9 +582,13 @@ class AppController extends ChangeNotifier {
     }
     restoring = false;
     notifyListeners();
-    if (session != null && !offlineMode) {
-      unawaited(_resumeBrowseResults());
-      unawaited(refreshServerFiles());
+    if (session != null) {
+      unawaited(
+        offlineMode
+            ? api.cachedBrowseOnly(_resumeBrowseResults)
+            : _resumeBrowseResults(),
+      );
+      if (!offlineMode) unawaited(refreshServerFiles());
     }
   }
 
@@ -502,9 +635,12 @@ class AppController extends ChangeNotifier {
     _browseTimer?.cancel();
     songDraft = playlistDraft = '';
     homeTab = 0;
-    _artistPortraits.clear();
+    pageStates.clear();
+    savedRoutes = [];
+    _restoredBrowsing = false;
     final old = session;
     session = null;
+    await browseSnapshot.clear();
     offlineMode = false;
     loggingIn = true;
     authError = expired ? '登录已失效，请重新登录' : null;
@@ -666,6 +802,11 @@ class AppController extends ChangeNotifier {
   Future<void> search(String value, {bool more = false}) async {
     final active = session;
     if (active == null || value.trim().isEmpty || (more && searching)) return;
+    final retained = !more && api.refreshingBrowse ? List.of(songs) : null;
+    final oldWindow = _searchWindow.copy();
+    final oldBuckets = Map.of(_buckets), oldPages = Map.of(_pages);
+    final oldMore = Set.of(_more);
+    final oldPage = page, oldHasMore = hasMore;
     final version = ++_searchVersion;
     keyword = value.trim();
     if (!more) {
@@ -700,7 +841,10 @@ class AppController extends ChangeNotifier {
       targets.where(_more.contains).map((platform) async {
         try {
           final nextPage = (_pages[platform] ?? 0) + 1;
-          final result = await api.search(active, keyword, platform, nextPage);
+          final result = await api.browseQuery(
+            () => version == _searchVersion && session == active,
+            () => api.search(active, keyword, platform, nextPage),
+          );
           if (version != _searchVersion) return;
           if (!aggregate) {
             _searchWindow.add(
@@ -711,7 +855,7 @@ class AppController extends ChangeNotifier {
               hasMore: result.hasMore,
             );
           }
-          offlineMode = false;
+          if (!api.readingCachedBrowseOnly) offlineMode = false;
           final bucket = _buckets.putIfAbsent(platform, () => []);
           final ids = bucket.map((s) => s.id).toSet();
           final fresh = result.songs.where((s) => ids.add(s.id)).toList();
@@ -749,6 +893,21 @@ class AppController extends ChangeNotifier {
       }),
     );
     if (version == _searchVersion) {
+      if (retained != null && songs.isEmpty && sourceFailures.isNotEmpty) {
+        songs = retained;
+        _searchWindow.restore(oldWindow);
+        _buckets
+          ..clear()
+          ..addAll(oldBuckets);
+        _pages
+          ..clear()
+          ..addAll(oldPages);
+        _more
+          ..clear()
+          ..addAll(oldMore);
+        page = oldPage - 1;
+        hasMore = oldHasMore;
+      }
       searching = false;
       page++;
       notifyListeners();

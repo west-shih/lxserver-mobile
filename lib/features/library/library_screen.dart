@@ -1,4 +1,8 @@
+import '../../app/browse_navigation.dart';
+
 import 'package:flutter/material.dart';
+
+import '../../shared/remembered_page.dart';
 
 import '../../app/controller.dart';
 import '../../app/theme.dart';
@@ -18,7 +22,29 @@ class LibraryScreen extends StatefulWidget {
   State<LibraryScreen> createState() => _LibraryScreenState();
 }
 
-class _LibraryScreenState extends State<LibraryScreen> {
+class _LibraryScreenState extends State<LibraryScreen>
+    with RememberedPage<LibraryScreen> {
+  final _scroll = ScrollController();
+  @override
+  AppController get browseApp => widget.controller;
+  @override
+  String get browseKey => 'home.library';
+  @override
+  ScrollController get browseScroll => _scroll;
+  @override
+  Map<String, dynamic> saveView() => {'tab': _tab};
+  @override
+  void restoreView(Map<String, dynamic> value) {
+    _tab = value['tab'] is int ? (value['tab'] as int).clamp(0, 2) : 0;
+  }
+
+  @override
+  void dispose() {
+    rememberView();
+    _scroll.dispose();
+    super.dispose();
+  }
+
   int _tab = 0;
   bool _savingOrder = false, _dragging = false, _editing = false;
   List<MusicCollection>? _ordered;
@@ -144,8 +170,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   void _collection(MusicCollection collection) => Navigator.push(
     context,
-    MaterialPageRoute<void>(
-      builder: (_) => CollectionScreen(
+    browseRoute(
+      CollectionScreen(
         controller: widget.controller,
         collection: collection,
         editable: true,
@@ -191,6 +217,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       return RefreshIndicator(
         onRefresh: _refresh,
         child: CustomScrollView(
+          controller: _scroll,
           key: PageStorageKey('library-$_tab'),
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [

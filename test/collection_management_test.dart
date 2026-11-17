@@ -523,8 +523,12 @@ void main() {
         MaterialApp(home: PersonalCenterScreen(controller: c)),
       );
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.byType(DropdownButton<int>));
-      await tester.tap(find.byType(DropdownButton<int>));
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('collection-page-size-setting')),
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('collection-page-size-setting')),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('每页 30 项').last);
       await tester.pumpAndSettle();
@@ -535,7 +539,9 @@ void main() {
       expect(find.byType(SwitchListTile), findsNothing);
       expect(find.text('每页歌曲数'), findsNothing);
       expect(find.textContaining('关闭后'), findsNothing);
-      await tester.tap(find.byType(DropdownButton<int>));
+      await tester.tap(
+        find.byKey(const ValueKey('collection-page-size-setting')),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('连续列表').last);
       await tester.pumpAndSettle();

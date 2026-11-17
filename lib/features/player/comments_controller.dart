@@ -16,6 +16,7 @@ class CommentsController extends ChangeNotifier {
   int _generation = 0;
   Future<void> load({String? category, int? targetPage}) async {
     final version = ++_generation;
+    final retained = api.refreshingBrowse ? List.of(items) : null;
     type = category ?? type;
     page = targetPage ?? (category != null ? 1 : page);
     loading = true;
@@ -23,7 +24,16 @@ class CommentsController extends ChangeNotifier {
     items = [];
     notifyListeners();
     try {
-      final result = await api.comments(session, song, type: type, page: page);
+      final requestedType = type, requestedPage = page;
+      final result = await api.browseQuery(
+        () => version == _generation,
+        () => api.comments(
+          session,
+          song,
+          type: requestedType,
+          page: requestedPage,
+        ),
+      );
       if (version != _generation) return;
       if (result['comments'] is! List) throw const ApiFailure('评论数据格式不可用');
       items = (result['comments'] as List)
@@ -41,6 +51,7 @@ class CommentsController extends ChangeNotifier {
       if (version == _generation) error = '评论暂时无法加载，请重试';
     } finally {
       if (version == _generation) {
+        if (error != null && retained != null) items = retained;
         loading = false;
         notifyListeners();
       }

@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lxserver_mobile/core/artwork_image.dart';
+import 'package:lxserver_mobile/core/browse_cache.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -13,6 +14,9 @@ void main() {
     HttpOverrides.global = null;
     addTearDown(() => HttpOverrides.global = previous);
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final root = await Directory.systemTemp.createTemp('lx-cover-test');
+    addTearDown(() => root.delete(recursive: true));
+    final cache = BrowseCache(directory: () async => root);
     addTearDown(() => server.close(force: true));
     final received = Completer<List<String>?>();
     final recorder = ui.PictureRecorder();
@@ -34,6 +38,7 @@ void main() {
       ArtworkImage(
         'http://127.0.0.1:${server.port}/cover.png',
         headers: const {'User-Agent': 'Mozilla/5.0'},
+        cache: cache,
       ),
       width: 80,
       height: 80,
@@ -53,5 +58,25 @@ void main() {
     expect(info.image.height, 40);
     info.dispose();
     await image.evict();
+    final imageUrl = 'http://127.0.0.1:${server.port}/cover.png';
+    await server.close(force: true);
+    final offlineImage = ArtworkImage(
+      imageUrl,
+      headers: const {'User-Agent': 'Mozilla/5.0'},
+      cache: BrowseCache(directory: () async => root),
+    );
+    final offline = Completer<ImageInfo>();
+    final offlineStream = offlineImage.resolve(ImageConfiguration.empty);
+    final offlineListener = ImageStreamListener(
+      (info, _) => offline.complete(info),
+      onError: offline.completeError,
+    );
+    offlineStream.addListener(offlineListener);
+    addTearDown(() => offlineStream.removeListener(offlineListener));
+    final restored = await offline.future;
+    expect(restored.image.width, 200);
+    expect(restored.image.height, 100);
+    restored.dispose();
+    await offlineImage.evict();
   });
 }

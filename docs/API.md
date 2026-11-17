@@ -77,6 +77,12 @@
 
 歌词依据：固定基线 `src/server/server.ts` GET 分支与 `src/server/music/downloadLyrics.ts`，先读取当前用户的服务端已有歌词，再请求平台，失败时允许读取内嵌歌词。旧 POST 分支直接请求平台，绕过已有歌词。2026-11-14 SM S9180 真实部署诊断：同一 QQ 歌曲 POST 返回 HTTP 500 / `Get lyric failed`，GET 返回 200、3088 字符歌词，含 `_fromLocalCache` 字段；补数字 songId 后 POST 仍失败。安装修复版后，通过真机 PlayerController.loadLyrics 实测加载 75 行同步歌词，loadingLyrics=false、lyricError=null。电脑直连 QQ 返回成功不能证明服务器网络正常。部署 `/js/config.js` 自报 v2.2.0 / `6c6462d`，完整部署 commit 未确认；仅验证本条 GET 契约，不扩大兼容范围。
 
+2026-11-17 SM S9180 真实会话只读复查：使用手机恢复队列当前 QQ 歌曲的 songmid、数字 songId 和当前会话，在电脑侧重放 GET 歌词请求，返回 HTTP 500 / `Get lyric failed`；同歌曲 GET `/api/music/cache/lyric` 返回 404 / `Not found in cache`。本次没有可用服务端歌词缓存兜底，不能将此前某首歌曲 GET 成功推广到全部歌曲。固定基线 QQ `tx/lyric.js` 在上游业务码重试耗尽或解析结果无歌词时均可能抛出此错误；仅凭响应不能区分上游限制、空歌词或具体解析失败，需要部署端日志。当前手机构建为 AOT，VM Service 可读实例但不支持表达式求值；本次未通过播放器重新执行加载，也未验证部署 commit，不将电脑侧重放记为真机端到端通过。
+
+同日直连部署原始端口复查仍为 500，缓存为 404；部署自报 v2.2.0 / `6c6462d`，完整 commit 未知。进一步只读核对 Docker 实际 `tx/lyric.js`：`getSongId` 原样返回传入的 songId，而 GET 查询参数均为字符串。容器内实际模块对照同一歌曲：字符串 songId 抛 `Get lyric failed`，数值 songId 返回 1466 字符歌词；同部署 HTTP 对照携带 songId 为 500、仅携带 MID 为 200。根因是数字 ID 的类型在 GET 链路中丢失，并非已证实的网络故障。客户端对具有非数字 QQ MID 的歌词 GET 省略 songId，让服务端通过 MID 获取数值 ID；保留缓存优先与其他平台字段。该方式首次可能增加服务端歌曲信息查询，后续复用其 MID→ID 内存缓存。仅数字身份仍保留既有参数，其兼容性不扩大；未修改容器或远程配置。
+
+本次客户端验证：Dart 格式化、flutter analyze、music_features_test / browse_cache_test 共 22 项测试及 Android debug 构建通过，ADB 覆盖安装返回 Success。安装后调试验证期间 USB/ADB 连接中断，设备列表为空，未取得 PlayerController 加载结果；手机端显示验收待完成。
+
 - 平台可见性依据“支持解析的平台”，不是搜索请求成功率，也不保证每首歌一定可播放。
 - 缓存标签与网页 public/music/js/local/server_file_state.js 对齐：标识按 songmid/songId/id 和平台前缀生成，下载目录 music 显示已下载，cache 显示已缓存；均在服务器，不在手机。状态单次并发合并、60 秒复用，账号切换清空，刷新音乐库强制刷新；不逐首逐音质请求，不持久保存文件列表/签名 URL。
 - 状态接口成功且明确无可用平台时显示空状态；404、权限错误、网络失败或旧版字段不完整时保留五个平台，标记未知。
@@ -218,3 +224,25 @@
 ## 系统媒体会话（客户端能力）
 
 固定基线 v2.2.0 / 13865b82 的 public/music/app.js 已核对 mediaSession 的 play/pause/previoustrack/nexttrack/seekto 与 updateMediaSessionMetadata。手机端通过 audio_service 发布本机系统会话，操作委派 PlayerController，不新增 LXServer 路径、鉴权或响应字段；本次不扩大服务端兼容范围。实现与运行验收边界见 PLAYBACK_ENGINE.md。
+
+## 网易查询风控与请求放大边界
+
+以下为固定 v2.2.0 / 13865b82 源码核对，不是部署流量实测。网易触发校验的内部规则、阈值和本次触发原因未知；不能仅凭 App 开发时间或校验提示判断责任入口。未向真实网易接口发送排查请求，未修改部署或上游检出。
+
+- 公共出口：`wy/utils/index.js` 的 eapiRequest/weapiRequest 经 `modules/utils/request.js` 请求网易，后者按 music 分类选择代理。因此走同一部署的网页、App、Subsonic 在线查询可能共享服务器或代理出口；实际出口及其他服务是否共用仍待查。搜索 SDK 请求与自定义音源播放解析需分别统计，不能以播放次数代替网易查询次数。
+- 失败重试：`wy/musicSearch.js` 的 search、`extendSearch.js` 的歌手/专辑/歌单搜索遇非 200 业务码会递归立即重试，最多共 3 次，没有校验分类或退避；`wy/songList.js` 的详情、推荐、分类也存在失败递归重试。原始校验信息可能被 `try max num` 等通用错误覆盖。需先明确原始 HTTP 状态、业务码及校验信号，再设计结构化错误，不能把任意 403/500 都判为网易风控。
+- 原生歌曲搜索：`server.ts /api/music/search` 显式传正数 limit 才走单页；未传时从第一页连续取数，最多 60 页、4000 条或约 15 秒预算，并可能因空页、重复页或错误提前停止。App `LxApi.search` 明确传 limit=20；基线网页 app.js 的普通歌曲搜索传 limit=30，服务端按 SDK 上限收紧，网易为 20，故这两条普通歌曲搜索路径均非默认全量抓取。
+- 网页输入联想：`public/music/js/library/search_suggestions.js` 在输入停顿 300ms 后调用 tipSearch；聚合时按各平台查询，有 60 秒非空结果缓存。取消浏览器 fetch 不等于已证明服务端及网易请求均被取消。App home.dart 当前只在显式提交时搜索，未发现相同输入联想路径。
+- App 重复查询：`AppController.search` 仅阻止正在搜索时的 more，新查询没有相同请求合并；版本号只丢弃旧响应，不取消网络请求。跨平台并发不等于同时向网易请求五次，但重复提交、切平台再切回和重新进入详情可能重复请求网易。目前没有统一网易查询冷却与校验熔断；LxApi 将多数服务端失败转换为通用错误。
+- 重试层级复核：LxApi._request → _requestJson 只发送一次，server.ts 上述原生查询路由未另包一轮重试，底层 request.js 也未发现自动重发。因此普通搜索不是 App 三次乘服务端三次，而是一次 App 请求仍可能被网易 SDK 放大为三次。网页 JavaScript 不在 App 调用链内。不能根据 retryNum 参数名断言实际重试：wy/musicDetail.getList 虽保留该参数，失败直接 throw；songList.search 也直接失败，不同于 extendSearch.searchPlaylist 的递归三次。
+- 歌手列表头像补全：`ArtistCard` 构建时调用 `AppController.artistPortrait`，网易每个不同歌手都会排队读取 artistDetail，不仅是请求图片；当前仅有最多 100 项会话内 Future 复用，未落盘。进入歌手详情又由独立控制器读取简介，未共享该结果。这属于列表逐项补全导致的额外平台查询，应改为优先现有图片、缺图占位并共享持久化详情缓存，避免仅为头像自动查询全部歌手。
+- 歌手详情：App `EntityDetailController.load` 并行请求 artistDetail 和 artistSongs。`server.ts /api/music/artistSongs` 内部串行抓取每页 100 条，默认最多 20 页；配置 artist.maxFetchPages 可调整且上限 100。App 一次调用不代表一次网易请求，详情不是按手机显示页按需查询。该放大点应优先整改，不能仅在 UI 增加防抖。
+- 外部歌单：App 浏览详情按批次加载；完整收藏/显式刷新经 `LibraryController.remoteSongs` 连续读取到结束，安全上限 1000 次且无新歌曲时失败。网易 `songList.getListDetail` 每次先请求歌单详情，再按 trackIds 分批调用 musicDetail 补足，翻页可能重复读取详情；需区分普通浏览和显式全量操作，不应以不完整结果覆盖已有收藏。
+- Subsonic：`integrations/subsonic.ts fetchOnlineSearchSongs` 在缓存未命中时，每个平台主动取到目标 50 条；网易每页 20，最多先取 3 页，不足时还会尝试简繁关键词变体。成功返回结果复用 5 分钟缓存，但该函数未合并同键在途请求。歌手、专辑搜索另有在线路径。默认配置 onlineSearch=true、onlineSearchMode=fallback、候选源含 wy；实际配置未知。“客户端很少播放”不能证明没有搜索或后台请求。
+- MA：本地未取得用户所用插件源码、版本或配置。若使用 MA 官方 OpenSubsonic provider，它依赖 Subsonic 服务；禁用整个服务会影响该 provider 的同步、查询及播放。若是直连原生 API 的第三方 LXServer provider，则需按插件调用链判断，不能推断两者独立。可先评估只关闭 Subsonic 在线搜索，保留协议和本地库访问；这会影响依赖在线搜索的功能，不代表所有在线相关调用都已停止。
+
+完整调用链的整改建议（包含上游能力，服务端改动不在本次客户端实施范围）：先在服务端公共网易调用处保留脱敏错误分类、停止校验响应重试、按出口限制并发并合并相同在途查询；冷却时间遵循上游明确信号，未提供时作为可配置策略，不宣称某个请求速率安全。随后让歌手歌曲按需分页，App 增加查询复用、同请求合并、取消未开始任务及明确冷却提示，并让播放降级/批量操作在校验错误后停止继续尝试。浏览与完整收藏要保留不同的完整性语义。
+
+验收需覆盖：校验响应只发送一次上游请求、相同并发查询合并、切换查询不再执行旧排队任务、冷却不阻止其他平台及已有本机文件播放、歌手首屏不全量抓取、完整收藏失败不覆盖旧数据。仍需部署版本及脱敏运行证据：按入口/平台/操作统计上游次数、并发、重试、缓存命中及状态码，与首次校验时间对齐；不得记录密码、Token、Cookie、完整签名 URL 或原始个人查询。当前部署 commit 未确认，无真实流量归因结论。
+
+客户端请求收敛与浏览缓存第一版已实现，范围和数据生命周期见 ARCHITECTURE.md“浏览缓存与请求收敛”。全部沿用既有接口，不修改上游。显式下拉刷新仅保证请求 LXServer，不保证其绕过服务端自身缓存；HTTP 5xx/429 停止播放解析尝试，不等于已经取得原始网易校验码。跨重启磁盘复用、离线缓存命中和请求次数通过 Mock/临时目录测试，部署风控归因与真实设备流量仍待核实。

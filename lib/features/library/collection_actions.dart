@@ -1,3 +1,5 @@
+import '../../app/browse_navigation.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../shared/app_modal.dart';
@@ -71,8 +73,8 @@ Future<bool> performCollectionAction(
     if (summary == null) return false;
     await Navigator.push(
       context,
-      MaterialPageRoute<void>(
-        builder: (_) => CollectionScreen(
+      browseRoute(
+        CollectionScreen(
           controller: c,
           collection: MusicCollection(
             summary.id,
@@ -171,10 +173,8 @@ Future<bool> performCollectionAction(
     SongBatch? refreshed;
     if (action == 'refresh') {
       if (summary == null) throw const ApiFailure('该歌单没有可同步的原平台来源');
-      refreshed = await c.library.remoteSongs(
-        session,
-        summary,
-        c.discovery.detail,
+      refreshed = await c.api.refreshBrowse(
+        () => c.library.remoteSongs(session, summary, c.discovery.detail),
       );
     }
     if (c.session != session) return false;

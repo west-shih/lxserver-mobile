@@ -97,8 +97,15 @@ class PlayerScreen extends StatefulWidget {
 }
 
 class _PlayerScreenState extends State<PlayerScreen> {
-  final _pages = PageController();
+  late final PageController _pages;
   int _page = 0;
+  @override
+  void initState() {
+    super.initState();
+    _page = widget.controller?.pageState('player')['page'] == 1 ? 1 : 0;
+    _pages = PageController(initialPage: _page);
+  }
+
   @override
   void dispose() {
     _pages.dispose();
@@ -198,8 +205,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             child: PageView(
                               key: const ValueKey('player-pages'),
                               controller: _pages,
-                              onPageChanged: (index) =>
-                                  setState(() => _page = index),
+                              onPageChanged: (index) {
+                                setState(() => _page = index);
+                                widget.controller?.rememberPage('player', {
+                                  'page': index,
+                                });
+                              },
                               children: [
                                 LayoutBuilder(
                                   builder: (context, area) => Center(

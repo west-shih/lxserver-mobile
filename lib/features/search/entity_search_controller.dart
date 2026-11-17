@@ -6,6 +6,19 @@ import 'music_entity.dart';
 
 class EntitySearchController extends ChangeNotifier {
   EntitySearchController(this.api, this.onUnauthorized);
+  Future<Object> _read(
+    Session session,
+    String path, {
+    Map<String, String>? query,
+  }) {
+    final version = _version;
+
+    return api.browseQuery(
+      () => version == _version,
+      () => api.read(session, path, query: query),
+    );
+  }
+
   final LxApi api;
   final VoidCallback onUnauthorized;
   SearchKind kind = SearchKind.song;
@@ -19,6 +32,44 @@ class EntitySearchController extends ChangeNotifier {
   int _version = 0;
   int revision = 0;
   final _window = PageWindow<MusicEntity>((e) => e.key);
+  Map<String, dynamic> snapshot() => {
+    'kind': kind.name,
+    'source': source.name,
+    'keyword': keyword,
+    'items': items.map((e) => e.raw).toList(),
+    'page': page,
+    'total': total,
+    'hasMore': hasMore,
+    'revision': revision,
+    'window': _window.snapshot((e) => e.raw),
+  };
+  void restoreSnapshot(Map value) {
+    kind =
+        SearchKind.values.where((e) => e.name == value['kind']).firstOrNull ??
+        SearchKind.song;
+    source =
+        MusicSource.values
+            .where((e) => e.name == value['source'])
+            .firstOrNull ??
+        MusicSource.wy;
+    keyword = value['keyword'] is String ? value['keyword'] : '';
+    MusicEntity decode(Map<String, dynamic> data) =>
+        MusicEntity(data, source, kind == SearchKind.artist);
+    items = (value['items'] as List? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(decode)
+        .toList();
+    page = resultTotal(value['page']) ?? 0;
+    total = resultTotal(value['total']);
+    hasMore = value['hasMore'] == true;
+    revision = resultTotal(value['revision']) ?? 0;
+    if (value['window'] is Map) {
+      _window.restoreSnapshot(value['window'], decode);
+    }
+    loading = false;
+    error = null;
+  }
+
   bool get hasWindow => _window.ready && total != null;
   List<MusicEntity> pageItems(int page, int size) => hasWindow
       ? _window.items(page, size)
@@ -31,7 +82,7 @@ class EntitySearchController extends ChangeNotifier {
     notifyListeners();
     try {
       for (final native in _window.missing(displayPage, size)) {
-        final data = await api.read(
+        final data = await _read(
           session,
           '/api/music/search',
           query: {
@@ -118,6 +169,10 @@ class EntitySearchController extends ChangeNotifier {
         (more && (loading || !hasMore))) {
       return;
     }
+    final retained = !more && api.refreshingBrowse ? List.of(items) : null;
+    final retainedWindow = _window.copy();
+    final retainedPage = page, retainedTotal = total;
+    final retainedMore = hasMore;
     if (!more) clear();
     keyword = query.trim();
     if (keyword.isEmpty) {
@@ -130,7 +185,7 @@ class EntitySearchController extends ChangeNotifier {
     notifyListeners();
     try {
       final next = page + 1;
-      final data = await api.read(
+      final data = await _read(
         session,
         '/api/music/search',
         query: {
@@ -173,6 +228,13 @@ class EntitySearchController extends ChangeNotifier {
       if (version == _version) error = '搜索暂时失败，请重试';
     } finally {
       if (version == _version) {
+        if (error != null && retained != null) {
+          items = retained;
+          page = retainedPage;
+          total = retainedTotal;
+          hasMore = retainedMore;
+          _window.restore(retainedWindow);
+        }
         loading = false;
         notifyListeners();
       }

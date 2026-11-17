@@ -1,3 +1,5 @@
+import '../../app/browse_navigation.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../shared/app_modal.dart';
@@ -279,9 +281,7 @@ class DownloadsScreen extends StatelessWidget {
               icon: const Icon(Icons.storage_rounded),
               onPressed: () => Navigator.push(
                 context,
-                MaterialPageRoute<void>(
-                  builder: (_) => CacheSettingsScreen(controller: controller),
-                ),
+                browseRoute(CacheSettingsScreen(controller: controller)),
               ),
             ),
           ],
@@ -532,7 +532,7 @@ class CacheSettingsScreen extends StatelessWidget {
                   dropdownColor: Colors.white,
                   value: media.cacheLimitMb,
                   items: [
-                    for (final value in [0, 256, 512, 1024, 2048])
+                    for (final value in LocalMediaController.cacheLimitsMb)
                       DropdownMenuItem(
                         value: value,
                         child: Text(
@@ -583,9 +583,7 @@ class CacheSettingsScreen extends StatelessWidget {
                 trailing: const Icon(Icons.chevron_right_rounded),
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute<void>(
-                    builder: (_) => DownloadsScreen(controller: controller),
-                  ),
+                  browseRoute(DownloadsScreen(controller: controller)),
                 ),
               ),
               if (media.storageError != null)

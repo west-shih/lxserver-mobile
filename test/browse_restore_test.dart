@@ -47,7 +47,7 @@ void main() {
     ),
   );
 
-  test('Restart restores scoped drafts, search type and filters then reloads first pages', () async {
+  test('Restart restores scoped drafts, search type and filters without querying first pages', () async {
     final first = controller([]);
     await first.restore();
     first.session = session;
@@ -76,13 +76,14 @@ void main() {
     expect(second.homeTab, 1);
     expect(second.entitySearch.kind, SearchKind.artist);
     expect(second.discovery.tag, 'fixture-tag');
-    final search = requests.singleWhere((r) => r.path == '/api/music/search');
-    expect(search.queryParameters['name'], 'submitted artist');
-    expect(search.queryParameters['page'], '1');
-    final playlist = requests.singleWhere(
-      (r) => r.path.endsWith('/songList/search'),
+    expect(
+      requests.where(
+        (r) =>
+            r.path == '/api/music/search' ||
+            r.path.endsWith('/songList/search'),
+      ),
+      isEmpty,
     );
-    expect(playlist.queryParameters['text'], 'submitted playlist');
     await second.logout();
     expect(await second.store.readBrowseState(), isEmpty);
     second.dispose();
@@ -114,7 +115,7 @@ void main() {
   });
 
   test(
-    'Netease cards use detail avatars with request deduplication and fallback',
+    'Netease cards reuse list portraits without platform enrichment',
     () async {
       final requests = <Uri>[];
       final c = controller(requests)..session = session;
@@ -127,15 +128,15 @@ void main() {
         c.artistPortrait(entity),
         c.artistPortrait(entity),
       ]);
-      expect(portraits, everyElement('https://example.test/portrait.jpg'));
-      expect(requests.length, 1);
+      expect(portraits, everyElement(entity.image));
+      expect(requests.length, 0);
       const qq = MusicEntity(
         {'id': '43', 'picUrl': 'https://example.test/list.jpg'},
         MusicSource.tx,
         true,
       );
       expect(await c.artistPortrait(qq), qq.image);
-      expect(requests.length, 1);
+      expect(requests.length, 0);
       c.dispose();
     },
   );

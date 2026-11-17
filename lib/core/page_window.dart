@@ -7,10 +7,57 @@ class PageWindow<T> {
   int? total, nativeSize;
   bool get ready => nativeSize != null && _pages.isNotEmpty;
 
+  PageWindow<T> copy() {
+    final result = PageWindow<T>(identity)..total = total;
+    result.nativeSize = nativeSize;
+    result._pages.addAll(
+      _pages.map((key, value) => MapEntry(key, List.of(value))),
+    );
+    result._more.addAll(_more);
+    return result;
+  }
+
+  void restore(PageWindow<T> other) {
+    clear();
+    total = other.total;
+    nativeSize = other.nativeSize;
+    _pages.addAll(other._pages);
+    _more.addAll(other._more);
+  }
+
   void clear() {
     _pages.clear();
     _more.clear();
     total = nativeSize = null;
+  }
+
+  Map<String, dynamic> snapshot(Object Function(T) encode) => {
+    'total': total,
+    'size': nativeSize,
+    'pages': {
+      for (final entry in _pages.entries)
+        '${entry.key}': entry.value.map(encode).toList(),
+    },
+    'more': {for (final entry in _more.entries) '${entry.key}': entry.value},
+  };
+
+  void restoreSnapshot(Map value, T Function(Map<String, dynamic>) decode) {
+    clear();
+    total = resultTotal(value['total']);
+    nativeSize = resultTotal(value['size']);
+    final pages = value['pages'];
+    if (pages is! Map) return;
+    for (final entry in pages.entries.take(500)) {
+      final page = int.tryParse('${entry.key}');
+      if (page == null || page < 1 || entry.value is! List) continue;
+      _pages[page] = (entry.value as List)
+          .whereType<Map<String, dynamic>>()
+          .map(decode)
+          .toList();
+      _more[page] = value['more'] is Map
+          ? value['more']['$page'] == true
+          : true;
+    }
   }
 
   void add(

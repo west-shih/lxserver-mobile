@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'controller.dart';
+import 'browse_navigation.dart';
 import '../features/settings/personal_center_screen.dart';
 import '../features/local_media/local_media_screens.dart';
 import 'theme.dart';
@@ -35,6 +36,7 @@ class _MusicHomeState extends State<MusicHome> {
     _playlistQuery.addListener(_rememberDrafts);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _select(_tab);
+      if (mounted) restoreBrowseRoutes(context, c);
     });
   }
 
@@ -74,12 +76,13 @@ class _MusicHomeState extends State<MusicHome> {
     c.flushBrowseState();
     if (tab == 2 && !_loadedLibrary) {
       _loadedLibrary = true;
-      if (!c.offlineMode) c.refreshLibrary();
+      if (!c.offlineMode && !c.library.hasSnapshot) c.refreshLibrary();
     }
     if (tab == 1 && !_loadedDiscovery && c.availableSources.isNotEmpty) {
       _loadedDiscovery = true;
       c.discovery.sources = List.of(c.availableSources);
       if (c.discovery.playlists.isEmpty &&
+          c.discovery.page == 0 &&
           !c.discovery.loading &&
           !c.resumingBrowse) {
         c.discovery.load(session, categories: !c.discovery.aggregate);
@@ -89,9 +92,7 @@ class _MusicHomeState extends State<MusicHome> {
 
   void _account() => Navigator.push(
     context,
-    MaterialPageRoute<void>(
-      builder: (_) => PersonalCenterScreen(controller: widget.controller),
-    ),
+    browseRoute(PersonalCenterScreen(controller: widget.controller)),
   );
 
   @override
@@ -184,9 +185,7 @@ class _MusicHomeState extends State<MusicHome> {
                         tooltip: '本机下载',
                         onPressed: () => Navigator.push(
                           context,
-                          MaterialPageRoute<void>(
-                            builder: (_) => DownloadsScreen(controller: c),
-                          ),
+                          browseRoute(DownloadsScreen(controller: c)),
                         ),
                         icon: const Icon(Icons.downloading_rounded, size: 23),
                       ),

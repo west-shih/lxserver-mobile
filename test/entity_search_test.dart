@@ -669,13 +669,14 @@ void main() {
       () {},
     );
     final first = d.load();
-    await d.load(sort: 'time');
+    final newer = d.load(sort: 'time');
     old.complete(
       response([
         {'songmid': 'old'},
       ]),
     );
     await first;
+    await newer;
     expect(d.songs.single.raw['songmid'], 'latest');
     expect(d.infoError, isNotNull);
     expect(d.error, isNull);

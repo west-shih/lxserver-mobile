@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../shared/remembered_page.dart';
+
 import '../../shared/app_modal.dart';
 import '../../shared/collection_picker.dart';
 
@@ -39,7 +41,55 @@ class CollectionScreen extends StatefulWidget {
   State<CollectionScreen> createState() => _CollectionScreenState();
 }
 
-class _CollectionScreenState extends State<CollectionScreen> {
+class _CollectionScreenState extends State<CollectionScreen>
+    with RememberedPage<CollectionScreen> {
+  @override
+  AppController get browseApp => widget.controller;
+  @override
+  String get browseKey =>
+      'detail.collection:${widget.editable}:${widget.collection.source?.name}:${widget.collection.id}';
+  @override
+  ScrollController get browseScroll => _scroll;
+  @override
+  Map<String, dynamic> saveView() => {
+    'page': _visiblePage,
+    'nativePage': _page,
+    'more': _more,
+    'total': _reportedTotal,
+    'songs': (widget.editable ? _collection.songs : _songs)
+        .map((s) => s.raw)
+        .toList(),
+    'image': _remoteImage,
+    'query': _search.text,
+    'searching': _searching,
+    'metadata': {
+      'author': _metadata.author,
+      'desc': _metadata.description,
+      'play_count': _metadata.playCount,
+      'time': _metadata.date,
+    },
+  };
+  @override
+  void restoreView(Map<String, dynamic> value) {
+    if (!widget.editable && value['songs'] is List) {
+      _songs = parseSongs(value['songs']);
+    }
+    _visiblePage = resultTotal(value['page']) ?? 0;
+    _page = resultTotal(value['nativePage']) ?? 0;
+    _more = value.containsKey('more')
+        ? value['more'] == true
+        : widget.fetchPage != null;
+    _reportedTotal = resultTotal(value['total']);
+    _remoteImage = '${value['image'] ?? ''}';
+    if (value['metadata'] is Map) {
+      _metadata = _metadata.merge(
+        CollectionMetadata.fromJson(value['metadata']),
+      );
+    }
+    _search.text = '${value['query'] ?? ''}';
+    _searching = value['searching'] == true;
+  }
+
   late List<Song> _songs;
   late CollectionMetadata _metadata;
   String _remoteImage = '';
@@ -88,13 +138,12 @@ class _CollectionScreenState extends State<CollectionScreen> {
       _songs.where((s) => _selected.contains(s.id)).toList();
   @override
   void initState() {
-    super.initState();
     _songs = [...widget.collection.songs];
     _metadata = widget.collection.metadata;
+    super.initState();
     _scroll.addListener(_onScroll);
     widget.controller.refreshServerFiles();
-    _more = widget.fetchPage != null;
-    if (_more) _load();
+    if (_more && _page == 0) _load();
   }
 
   void _onScroll() {
@@ -134,6 +183,36 @@ class _CollectionScreenState extends State<CollectionScreen> {
       if (e.unauthorized) widget.controller.expire();
     } catch (_) {
       if (mounted) setState(() => _error = '歌曲列表暂时无法加载');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _refresh() async {
+    if (_loading || _saving || _selecting || widget.fetchPage == null) return;
+    final c = widget.controller;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final result = await c.api.refreshBrowse(() => widget.fetchPage!(1));
+      if (!mounted) return;
+      setState(() {
+        _songs = result.songs;
+        _page = 1;
+        _visiblePage = 0;
+        _more = result.hasMore;
+        _reportedTotal = result.total;
+        _metadata = _metadata.merge(result.metadata);
+        _remoteImage = firstImage([result.image, _remoteImage]);
+      });
+    } on ApiFailure catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.message);
+      if (e.unauthorized) c.expire();
+    } catch (_) {
+      if (mounted) setState(() => _error = '刷新失败，已保留原有内容');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -586,6 +665,7 @@ class _CollectionScreenState extends State<CollectionScreen> {
 
   @override
   void dispose() {
+    finishRemembering();
     _scroll.dispose();
     _search.dispose();
     _searchFocus.dispose();
@@ -703,257 +783,275 @@ class _CollectionScreenState extends State<CollectionScreen> {
               child: Column(
                 children: [
                   Expanded(
-                    child: CustomScrollView(
-                      controller: _scroll,
-                      keyboardDismissBehavior:
-                          ScrollViewKeyboardDismissBehavior.onDrag,
-                      slivers: [
-                        if (!_searching && !_selecting)
-                          SliverToBoxAdapter(
-                            child: CollectionHeader(
-                              key: _heroKey,
-                              name: collection.name,
-                              image: _image,
-                              metadata: _metadata,
-                              source: collection.source,
-                              linked: collection.isLinked,
+                    child: RefreshIndicator(
+                      onRefresh: _refresh,
+                      child: CustomScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        controller: _scroll,
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        slivers: [
+                          if (!_searching && !_selecting)
+                            SliverToBoxAdapter(
+                              child: CollectionHeader(
+                                key: _heroKey,
+                                name: collection.name,
+                                image: _image,
+                                metadata: _metadata,
+                                source: collection.source,
+                                linked: collection.isLinked,
+                              ),
                             ),
-                          ),
-                        if (_searching)
-                          SliverToBoxAdapter(
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(18, 8, 18, 10),
-                              child: Text(
-                                '${filtered.length} 首匹配${_more ? ' · 仅搜索已加载歌曲' : ''}',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: lxMuted,
+                          if (_searching)
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  18,
+                                  8,
+                                  18,
+                                  10,
+                                ),
+                                child: Text(
+                                  '${filtered.length} 首匹配${_more ? ' · 仅搜索已加载歌曲' : ''}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: lxMuted,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        if (!_searching || _selecting)
-                          SliverPersistentHeader(
-                            pinned: true,
-                            delegate: _CollectionToolbarDelegate(
-                              height: 62,
-                              child: Container(
-                                key: const ValueKey('collection-toolbar'),
-                                padding: const EdgeInsets.fromLTRB(
-                                  14,
-                                  6,
-                                  10,
-                                  8,
-                                ),
-                                decoration: const BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.vertical(
-                                    top: Radius.circular(20),
+                          if (!_searching || _selecting)
+                            SliverPersistentHeader(
+                              pinned: true,
+                              delegate: _CollectionToolbarDelegate(
+                                height: 62,
+                                child: Container(
+                                  key: const ValueKey('collection-toolbar'),
+                                  padding: const EdgeInsets.fromLTRB(
+                                    14,
+                                    6,
+                                    10,
+                                    8,
                                   ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    if (_selecting) ...[
-                                      Checkbox(
-                                        shape: const CircleBorder(),
-                                        tristate: true,
-                                        value:
-                                            filtered.isNotEmpty &&
-                                                filtered.every(
+                                  decoration: const BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.vertical(
+                                      top: Radius.circular(20),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      if (_selecting) ...[
+                                        Checkbox(
+                                          shape: const CircleBorder(),
+                                          tristate: true,
+                                          value:
+                                              filtered.isNotEmpty &&
+                                                  filtered.every(
+                                                    (s) => _selected.contains(
+                                                      s.id,
+                                                    ),
+                                                  )
+                                              ? true
+                                              : filtered.any(
                                                   (s) =>
                                                       _selected.contains(s.id),
                                                 )
-                                            ? true
-                                            : filtered.any(
-                                                (s) => _selected.contains(s.id),
-                                              )
-                                            ? null
-                                            : false,
-                                        onChanged:
-                                            _saving ||
-                                                _dragging ||
-                                                filtered.isEmpty
-                                            ? null
-                                            : (_) => setState(() {
-                                                if (filtered.every(
-                                                  (s) =>
-                                                      _selected.contains(s.id),
-                                                )) {
-                                                  _selected.removeAll(
-                                                    filtered.map((s) => s.id),
-                                                  );
-                                                } else {
-                                                  _selected.addAll(
-                                                    filtered.map((s) => s.id),
-                                                  );
-                                                }
-                                              }),
-                                      ),
-                                      const Text(
-                                        '全选',
-                                        style: TextStyle(fontSize: 14),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          _selected.isEmpty
-                                              ? ''
-                                              : '已选 ${_selected.length} 首',
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            color: lxMuted,
-                                          ),
-                                        ),
-                                      ),
-                                      TextButton(
-                                        onPressed: _saving || _dragging
-                                            ? null
-                                            : () => _finishEditing(),
-                                        child: const Text('完成'),
-                                      ),
-                                    ] else ...[
-                                      Expanded(
-                                        child: PlayAllControl(
-                                          buttonKey: const ValueKey(
-                                            'collection-play',
-                                          ),
-                                          count: _songs.length,
-                                          loadedOnly: _more,
-                                          onPlay:
-                                              _songs.isEmpty ||
-                                                  c.session == null
                                               ? null
-                                              : () => c.player.play(
-                                                  c.session!,
-                                                  _songs.first,
-                                                  songs: _songs,
-                                                ),
-                                        ),
-                                      ),
-                                      if (!widget.editable &&
-                                          collection.source != null &&
-                                          widget.fetchPage != null)
-                                        IconButton(
-                                          tooltip: collected
-                                              ? '取消收藏歌单'
-                                              : '收藏歌单',
-                                          onPressed:
+                                              : false,
+                                          onChanged:
                                               _saving ||
-                                                  c.library.mutating ||
-                                                  c.session == null
+                                                  _dragging ||
+                                                  filtered.isEmpty
                                               ? null
-                                              : _collect,
-                                          icon: Icon(
-                                            collected
-                                                ? Icons.favorite_rounded
-                                                : Icons.favorite_border_rounded,
-                                            color: collected ? lxGreen : lxInk,
+                                              : (_) => setState(() {
+                                                  if (filtered.every(
+                                                    (s) => _selected.contains(
+                                                      s.id,
+                                                    ),
+                                                  )) {
+                                                    _selected.removeAll(
+                                                      filtered.map((s) => s.id),
+                                                    );
+                                                  } else {
+                                                    _selected.addAll(
+                                                      filtered.map((s) => s.id),
+                                                    );
+                                                  }
+                                                }),
+                                        ),
+                                        const Text(
+                                          '全选',
+                                          style: TextStyle(fontSize: 14),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            _selected.isEmpty
+                                                ? ''
+                                                : '已选 ${_selected.length} 首',
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: lxMuted,
+                                            ),
                                           ),
                                         ),
-                                      IconButton(
-                                        tooltip: '批量操作',
-                                        onPressed: _songs.isEmpty
-                                            ? null
-                                            : () => _selectionMode(true),
-                                        icon: const PlaylistEditGlyph(),
-                                      ),
+                                        TextButton(
+                                          onPressed: _saving || _dragging
+                                              ? null
+                                              : () => _finishEditing(),
+                                          child: const Text('完成'),
+                                        ),
+                                      ] else ...[
+                                        Expanded(
+                                          child: PlayAllControl(
+                                            buttonKey: const ValueKey(
+                                              'collection-play',
+                                            ),
+                                            count: _songs.length,
+                                            loadedOnly: _more,
+                                            onPlay:
+                                                _songs.isEmpty ||
+                                                    c.session == null
+                                                ? null
+                                                : () => c.player.play(
+                                                    c.session!,
+                                                    _songs.first,
+                                                    songs: _songs,
+                                                  ),
+                                          ),
+                                        ),
+                                        if (!widget.editable &&
+                                            collection.source != null &&
+                                            widget.fetchPage != null)
+                                          IconButton(
+                                            tooltip: collected
+                                                ? '取消收藏歌单'
+                                                : '收藏歌单',
+                                            onPressed:
+                                                _saving ||
+                                                    c.library.mutating ||
+                                                    c.session == null
+                                                ? null
+                                                : _collect,
+                                            icon: Icon(
+                                              collected
+                                                  ? Icons.favorite_rounded
+                                                  : Icons
+                                                        .favorite_border_rounded,
+                                              color: collected
+                                                  ? lxGreen
+                                                  : lxInk,
+                                            ),
+                                          ),
+                                        IconButton(
+                                          tooltip: '批量操作',
+                                          onPressed: _songs.isEmpty
+                                              ? null
+                                              : () => _selectionMode(true),
+                                          icon: const PlaylistEditGlyph(),
+                                        ),
+                                      ],
                                     ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          if (filtered.isEmpty && !_loading && _error == null)
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.all(32),
+                                child: Center(
+                                  child: Text(
+                                    query.isEmpty ? '这里还没有歌曲' : '没有匹配的歌曲',
+                                    style: const TextStyle(color: lxMuted),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          if (_selecting && !widget.editable)
+                            const SliverToBoxAdapter(
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 18,
+                                  vertical: 8,
+                                ),
+                                child: Text(
+                                  '原歌单只读；排序和删除请在“我的”中编辑收藏副本',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: lxMuted,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          if (_selecting && _canReorder)
+                            SliverReorderableList(
+                              itemCount: visible.length,
+                              itemBuilder: (context, index) => _songRow(
+                                context,
+                                index,
+                                visible,
+                                reorderable: true,
+                              ),
+                              onReorderItem: _reorder,
+                              onReorderStart: (_) =>
+                                  setState(() => _dragging = true),
+                              onReorderEnd: (_) {
+                                if (mounted) setState(() => _dragging = false);
+                              },
+                              proxyDecorator: (child, _, _) => Material(
+                                color: Colors.white,
+                                elevation: 3,
+                                borderRadius: BorderRadius.circular(12),
+                                child: child,
+                              ),
+                            )
+                          else
+                            SliverList.builder(
+                              itemCount: visible.length,
+                              itemBuilder: (context, index) =>
+                                  _songRow(context, index, visible),
+                            ),
+                          if (_error != null ||
+                              _loading ||
+                              (_more && (!paged || query.isNotEmpty)))
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                child: Column(
+                                  children: [
+                                    if (_error != null)
+                                      Text(
+                                        _error!,
+                                        style: const TextStyle(color: lxMuted),
+                                      ),
+                                    if (_loading)
+                                      const Center(
+                                        child: SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        ),
+                                      )
+                                    else
+                                      TextButton(
+                                        onPressed: _load,
+                                        child: Text(
+                                          _error == null ? '加载更多' : '重试',
+                                        ),
+                                      ),
                                   ],
                                 ),
                               ),
                             ),
-                          ),
-                        if (filtered.isEmpty && !_loading && _error == null)
-                          SliverToBoxAdapter(
-                            child: Padding(
-                              padding: const EdgeInsets.all(32),
-                              child: Center(
-                                child: Text(
-                                  query.isEmpty ? '这里还没有歌曲' : '没有匹配的歌曲',
-                                  style: const TextStyle(color: lxMuted),
-                                ),
-                              ),
-                            ),
-                          ),
-                        if (_selecting && !widget.editable)
-                          const SliverToBoxAdapter(
-                            child: Padding(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 18,
-                                vertical: 8,
-                              ),
-                              child: Text(
-                                '原歌单只读；排序和删除请在“我的”中编辑收藏副本',
-                                style: TextStyle(fontSize: 12, color: lxMuted),
-                              ),
-                            ),
-                          ),
-                        if (_selecting && _canReorder)
-                          SliverReorderableList(
-                            itemCount: visible.length,
-                            itemBuilder: (context, index) => _songRow(
-                              context,
-                              index,
-                              visible,
-                              reorderable: true,
-                            ),
-                            onReorderItem: _reorder,
-                            onReorderStart: (_) =>
-                                setState(() => _dragging = true),
-                            onReorderEnd: (_) {
-                              if (mounted) setState(() => _dragging = false);
-                            },
-                            proxyDecorator: (child, _, _) => Material(
-                              color: Colors.white,
-                              elevation: 3,
-                              borderRadius: BorderRadius.circular(12),
-                              child: child,
-                            ),
-                          )
-                        else
-                          SliverList.builder(
-                            itemCount: visible.length,
-                            itemBuilder: (context, index) =>
-                                _songRow(context, index, visible),
-                          ),
-                        if (_error != null ||
-                            _loading ||
-                            (_more && (!paged || query.isNotEmpty)))
-                          SliverToBoxAdapter(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
-                              ),
-                              child: Column(
-                                children: [
-                                  if (_error != null)
-                                    Text(
-                                      _error!,
-                                      style: const TextStyle(color: lxMuted),
-                                    ),
-                                  if (_loading)
-                                    const Center(
-                                      child: SizedBox(
-                                        width: 20,
-                                        height: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                        ),
-                                      ),
-                                    )
-                                  else
-                                    TextButton(
-                                      onPressed: _load,
-                                      child: Text(
-                                        _error == null ? '加载更多' : '重试',
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                   if (paged && (pageCount > 1 || (_more && query.isEmpty)))

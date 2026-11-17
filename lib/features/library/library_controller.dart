@@ -43,6 +43,33 @@ class MusicCollection {
   bool get isSystem => id == 'love' || id == 'default';
   bool get isLinked => source != null && sourceListId.isNotEmpty;
   String get cover => image;
+  Map<String, dynamic> snapshot() => {
+    'id': id,
+    'name': name,
+    'songs': songs.map((s) => s.raw).toList(),
+    'image': image,
+    'source': source?.name,
+    'sourceListId': sourceListId,
+    'metadata': {
+      'author': metadata.author,
+      'desc': metadata.description,
+      'play_count': metadata.playCount,
+      'time': metadata.date,
+    },
+  };
+  factory MusicCollection.fromSnapshot(Map value) => MusicCollection(
+    '${value['id']}',
+    '${value['name'] ?? ''}',
+    parseSongs(value['songs'] ?? []),
+    image: '${value['image'] ?? ''}',
+    source: MusicSource.values
+        .where((e) => e.name == value['source'])
+        .firstOrNull,
+    sourceListId: '${value['sourceListId'] ?? ''}',
+    metadata: CollectionMetadata.fromJson(
+      value['metadata'] is Map ? value['metadata'] : {},
+    ),
+  );
 }
 
 List<MusicCollection> parseCollections(Object? json) {
@@ -94,6 +121,27 @@ List<MusicCollection> orderCollections(
 }
 
 class LibraryController extends ChangeNotifier {
+  bool hasSnapshot = false;
+  Map<String, dynamic> snapshot() => {
+    'loaded': hasSnapshot,
+    'collections': collections.map((e) => e.snapshot()).toList(),
+    'artists': artists,
+    'albums': albums,
+  };
+  void restoreSnapshot(Map value) {
+    collections = (value['collections'] as List? ?? [])
+        .whereType<Map>()
+        .map(MusicCollection.fromSnapshot)
+        .toList();
+    artists = (value['artists'] as List? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .toList();
+    albums = (value['albums'] as List? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .toList();
+    hasSnapshot = value['loaded'] == true;
+  }
+
   LibraryController(this.api, this.onUnauthorized);
   final LxApi api;
   final VoidCallback onUnauthorized;
@@ -208,6 +256,7 @@ class LibraryController extends ChangeNotifier {
     await Future.wait([
       part('/api/user/list', (json) {
         collections = _ordered(json);
+        hasSnapshot = true;
       }, (message) => error = message),
       part(
         '/api/user/settings',
@@ -611,6 +660,7 @@ class LibraryController extends ChangeNotifier {
   }
 
   void reset() {
+    hasSnapshot = false;
     ++_version;
     ++_mutationVersion;
     mutating = false;

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'page_window.dart';
+import 'browse_cache.dart';
 
 enum MusicSource {
   kw('酷我'),
@@ -24,7 +25,15 @@ const musicSourceOrder = [
   MusicSource.mg,
 ];
 
-enum FailureKind { unknown, network, permission, sourceUnavailable, storage }
+enum FailureKind {
+  unknown,
+  network,
+  permission,
+  sourceUnavailable,
+  storage,
+  server,
+  rateLimited,
+}
 
 class ApiFailure implements Exception {
   const ApiFailure(
@@ -191,9 +200,175 @@ class PlaybackResource {
 }
 
 class LxApi {
-  LxApi({http.Client? client}) : _client = client ?? http.Client();
+  LxApi({http.Client? client, BrowseCache? browseCache})
+    : _client = client ?? http.Client(),
+      browseCache = browseCache ?? (client == null ? BrowseCache.shared : null);
+  final BrowseCache? browseCache;
+  static final Object _refreshKey = Object();
+  static final Object _currentKey = Object();
+  static final Object _cacheOnlyKey = Object();
+  final Map<String, Future<Object>> _pendingBrowse = {};
+  final Map<String, List<bool Function()>> _interested = {};
+  final Map<String, Future<void>> _platformQueues = {};
+  final Map<String, int> _platformFailures = {};
+
+  /// Explicit refresh bypasses metadata reads, never adds a retry.
+  Future<T> refreshBrowse<T>(Future<T> Function() action) =>
+      runZoned(action, zoneValues: {_refreshKey: true});
+  bool get refreshingBrowse => Zone.current[_refreshKey] == true;
+  bool get readingCachedBrowseOnly => Zone.current[_cacheOnlyKey] == true;
+  Future<T> cachedBrowseOnly<T>(Future<T> Function() action) =>
+      runZoned(action, zoneValues: {_cacheOnlyKey: true});
+  Future<T> browseQuery<T>(
+    bool Function() current,
+    Future<T> Function() action,
+  ) => runZoned(action, zoneValues: {_currentKey: current});
+
+  static const _browsePaths = {
+    '/api/music/search',
+    '/api/music/songList/tags',
+    '/api/music/songList/list',
+    '/api/music/songList/search',
+    '/api/music/songList/detail',
+    '/api/music/artistDetail',
+    '/api/music/artistSongs',
+    '/api/music/artistAlbums',
+    '/api/music/albumSongs',
+    '/api/music/comment',
+    '/api/music/lyric',
+  };
   final http.Client _client;
   Future<Object> _requestJson(
+    Uri server,
+    String path, {
+    String method = 'GET',
+    Session? session,
+    Map<String, String>? query,
+    Object? body,
+    Duration timeout = const Duration(seconds: 40),
+  }) async {
+    final readOnly =
+        method == 'GET' || (method == 'POST' && path == '/api/music/comment');
+    if (!readOnly || session == null || !_browsePaths.contains(path)) {
+      return _sendJson(
+        server,
+        path,
+        method: method,
+        session: session,
+        query: query,
+        body: body,
+        timeout: timeout,
+      );
+    }
+    final sorted = Map.fromEntries(
+      (query?.entries.toList() ?? <MapEntry<String, String>>[])
+        ..sort((a, b) => a.key.compareTo(b.key)),
+    );
+    final key = jsonEncode([
+      server.toString(),
+      session.username,
+      path,
+      method,
+      sorted,
+      body,
+    ]);
+    final family = BrowseCache.digest(
+      jsonEncode([
+        server.toString(),
+        session.username,
+        path,
+        Map.of(sorted)..remove('page'),
+        if (body is Map) Map.of(body)..remove('page'),
+      ]),
+    );
+    final force = refreshingBrowse;
+    final pendingKey = BrowseCache.digest(
+      '$key:${session.token}:$force:$readingCachedBrowseOnly',
+    );
+    final current = Zone.current[_currentKey] as bool Function()?;
+    if (_pendingBrowse[pendingKey] case final pending?) {
+      _interested[pendingKey]!.add(current ?? () => true);
+      return pending;
+    }
+    final interested = <bool Function()>[current ?? () => true];
+    _interested[pendingKey] = interested;
+    final generation = browseCache?.generation;
+    final work = () async {
+      if (!force) {
+        final cached = await browseCache?.read(key);
+        if (cached != null) return cached;
+      }
+      if (Zone.current[_cacheOnlyKey] == true) {
+        throw const ApiFailure('离线时没有这部分浏览缓存', kind: FailureKind.network);
+      }
+      final song = body is Map ? body['songInfo'] : null;
+      final platform =
+          '${server.toString()}:${query?['source'] ?? (song is Map ? song['source'] : null) ?? 'other'}';
+      final failureKey = '$platform:$path';
+      final failureVersion = _platformFailures[failureKey] ?? 0;
+      final previous = _platformQueues[platform] ?? Future<void>.value();
+      final result = previous.then((_) {
+        if (!interested.any((check) => check())) {
+          throw const ApiFailure('查询已取消');
+        }
+        if ((_platformFailures[failureKey] ?? 0) != failureVersion) {
+          throw const ApiFailure('该平台刚刚请求失败，已停止排队查询，请稍后手动刷新');
+        }
+        return _sendJson(
+          server,
+          path,
+          method: method,
+          session: session,
+          query: query,
+          body: body,
+          timeout: timeout,
+        );
+      });
+      final tail = result.then<void>(
+        (_) {},
+        onError: (Object _, StackTrace _) {},
+      );
+      _platformQueues[platform] = tail;
+      try {
+        final data = await result;
+        if (generation != null && generation == browseCache!.generation) {
+          final requestedPage =
+              query?['page'] ?? (body is Map ? body['page']?.toString() : null);
+          if (force && (requestedPage == null || requestedPage == '1')) {
+            await browseCache!.invalidateFamily(family);
+          }
+          await browseCache!.write(
+            key,
+            data,
+            generation: generation,
+            family: family,
+          );
+        }
+        return data;
+      } on ApiFailure {
+        if ((_platformFailures[failureKey] ?? 0) == failureVersion &&
+            interested.any((check) => check())) {
+          _platformFailures[failureKey] = failureVersion + 1;
+        }
+        rethrow;
+      } finally {
+        if (identical(_platformQueues[platform], tail)) {
+          _platformQueues.remove(platform);
+        }
+      }
+    }();
+    _pendingBrowse[pendingKey] = work;
+    try {
+      return await work;
+    } finally {
+      if (identical(_pendingBrowse[pendingKey], work)) {
+        _pendingBrowse.remove(pendingKey);
+        _interested.remove(pendingKey);
+      }
+    }
+  }
+
+  Future<Object> _sendJson(
     Uri server,
     String path, {
     String method = 'GET',
@@ -254,7 +429,14 @@ class LxApi {
             kind: FailureKind.sourceUnavailable,
           );
         }
-        throw ApiFailure('请求失败（HTTP ${response.statusCode}），请检查服务器或稍后重试');
+        throw ApiFailure(
+          '请求失败（HTTP ${response.statusCode}），请检查服务器或稍后重试',
+          kind: response.statusCode == 429
+              ? FailureKind.rateLimited
+              : response.statusCode >= 500
+              ? FailureKind.server
+              : FailureKind.unknown,
+        );
       }
       if (data == null) throw const ApiFailure('服务器返回格式不兼容，请检查地址和 LXServer 版本');
       return data;
@@ -323,28 +505,38 @@ class LxApi {
   }) =>
       _requestJson(s.server, path, session: s, query: query, timeout: timeout);
 
-  Future<Map<String, dynamic>> lyrics(Session s, Song song) => _request(
-    s.server,
-    '/api/music/lyric',
-    session: s,
-    query: {
-      'source': '${song.raw['source']}',
-      'songmid': '${song.raw['songmid'] ?? song.raw['songId'] ?? ''}',
-      'name': song.name,
-      'singer': song.singer,
-      for (final key in [
-        'songId',
-        'hash',
-        'interval',
-        'copyrightId',
-        'albumId',
-        'lrcUrl',
-        'mrcUrl',
-        'trcUrl',
-      ])
-        if (song.raw[key] != null) key: '${song.raw[key]}',
-    },
-  );
+  Future<Map<String, dynamic>> lyrics(Session s, Song song) {
+    final mid = '${song.raw['songmid'] ?? ''}';
+    // GET query values are strings. QQ needs a numeric songID upstream;
+    // resolving a real MID lets the server obtain it with the correct type.
+    final resolveQqId =
+        song.raw['source'] == 'tx' &&
+        mid.isNotEmpty &&
+        int.tryParse(mid) == null;
+    return _request(
+      s.server,
+      '/api/music/lyric',
+      session: s,
+      query: {
+        'source': '${song.raw['source']}',
+        'songmid': '${song.raw['songmid'] ?? song.raw['songId'] ?? ''}',
+        'name': song.name,
+        'singer': song.singer,
+        for (final key in [
+          'songId',
+          'hash',
+          'interval',
+          'copyrightId',
+          'albumId',
+          'lrcUrl',
+          'mrcUrl',
+          'trcUrl',
+        ])
+          if (song.raw[key] != null && !(resolveQqId && key == 'songId'))
+            key: '${song.raw[key]}',
+      },
+    );
+  }
 
   Future<Map<String, dynamic>> comments(
     Session s,

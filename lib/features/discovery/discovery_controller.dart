@@ -19,6 +19,19 @@ class PlaylistSummary {
 
 class DiscoveryController extends ChangeNotifier {
   DiscoveryController(this.api, this.onUnauthorized);
+  Future<Object> _read(
+    Session session,
+    String path, {
+    Map<String, String>? query,
+  }) {
+    final version = _version;
+
+    return api.browseQuery(
+      () => version == _version,
+      () => api.read(session, path, query: query),
+    );
+  }
+
   final LxApi api;
   final VoidCallback onUnauthorized;
   MusicSource source = MusicSource.wy;
@@ -45,6 +58,89 @@ class DiscoveryController extends ChangeNotifier {
   final _window = PageWindow<PlaylistSummary>(
     (item) => '${item.source.name}:${item.id}',
   );
+  Map<String, dynamic> snapshot() => {
+    'source': source.name,
+    'aggregate': aggregate,
+    'keyword': keyword,
+    'tag': tag,
+    'tagName': tagName,
+    'sort': sort,
+    'groups': groups,
+    'sorts': sorts,
+    'page': page,
+    'hasMore': hasMore,
+    'revision': resultRevision,
+    'items': playlists
+        .map((e) => {'source': e.source.name, 'data': e.data})
+        .toList(),
+    'buckets': {
+      for (final e in _buckets.entries)
+        e.key.name: e.value.map((v) => v.data).toList(),
+    },
+    'pages': {for (final e in _pages.entries) e.key.name: e.value},
+    'more': _more.map((e) => e.name).toList(),
+    'defaults': {for (final e in _defaultSorts.entries) e.key.name: e.value},
+    'window': _window.snapshot((e) => e.data),
+  };
+  void restoreSnapshot(Map value) {
+    MusicSource platform(Object? id) =>
+        MusicSource.values.where((e) => e.name == id).firstOrNull ??
+        MusicSource.wy;
+    source = platform(value['source']);
+    aggregate = value['aggregate'] == true;
+    keyword = '${value['keyword'] ?? ''}';
+    tag = '${value['tag'] ?? ''}';
+    tagName = '${value['tagName'] ?? '全部分类'}';
+    sort = '${value['sort'] ?? ''}';
+    groups = (value['groups'] as List? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .toList();
+    sorts = (value['sorts'] as List? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .toList();
+    playlists = (value['items'] as List? ?? [])
+        .whereType<Map>()
+        .where((e) => e['data'] is Map<String, dynamic>)
+        .map((e) => PlaylistSummary(e['data'], platform(e['source'])))
+        .toList();
+    _buckets.clear();
+    _pages.clear();
+    _more.clear();
+    _defaultSorts.clear();
+    if (value['buckets'] is Map) {
+      for (final e in (value['buckets'] as Map).entries) {
+        _buckets[platform(e.key)] = (e.value as List)
+            .whereType<Map<String, dynamic>>()
+            .map((v) => PlaylistSummary(v, platform(e.key)))
+            .toList();
+      }
+    }
+    if (value['pages'] is Map) {
+      for (final e in (value['pages'] as Map).entries) {
+        _pages[platform(e.key)] = resultTotal(e.value) ?? 0;
+      }
+    }
+    for (final e in value['more'] as List? ?? []) {
+      _more.add(platform(e));
+    }
+    if (value['defaults'] is Map) {
+      for (final e in (value['defaults'] as Map).entries) {
+        _defaultSorts[platform(e.key)] = '${e.value}';
+      }
+    }
+    page = resultTotal(value['page']) ?? 0;
+    hasMore = value['hasMore'] == true;
+    resultRevision = resultTotal(value['revision']) ?? 0;
+    if (value['window'] is Map) {
+      _window.restoreSnapshot(
+        value['window'],
+        (data) => PlaylistSummary(data, source),
+      );
+    }
+    loading = false;
+    error = null;
+  }
+
   int? get total => aggregate ? null : _window.total;
   bool get hasWindow => !aggregate && _window.ready && total != null;
   List<PlaylistSummary> pageItems(int displayPage, int size) => hasWindow
@@ -61,7 +157,7 @@ class DiscoveryController extends ChangeNotifier {
     notifyListeners();
     try {
       for (final nativePage in _window.missing(displayPage, size)) {
-        final data = await api.read(
+        final data = await _read(
           session,
           query.isEmpty
               ? '/api/music/songList/list'
@@ -128,6 +224,33 @@ class DiscoveryController extends ChangeNotifier {
   }) async {
     if (more && loading) return;
     final version = ++_version;
+    final retained = !more && api.refreshingBrowse ? List.of(playlists) : null;
+    final oldWindow = _window.copy();
+    final oldBuckets = Map.of(_buckets), oldPages = Map.of(_pages);
+    final oldMore = Set.of(_more);
+    final oldPage = page, oldHasMore = hasMore;
+    void restoreFailedRefresh() {
+      if (version != _version ||
+          retained == null ||
+          error == null ||
+          playlists.isNotEmpty) {
+        return;
+      }
+      playlists = retained;
+      _window.restore(oldWindow);
+      _buckets
+        ..clear()
+        ..addAll(oldBuckets);
+      _pages
+        ..clear()
+        ..addAll(oldPages);
+      _more
+        ..clear()
+        ..addAll(oldMore);
+      page = oldPage;
+      hasMore = oldHasMore;
+    }
+
     loading = true;
     error = null;
     if (!more) {
@@ -138,10 +261,15 @@ class DiscoveryController extends ChangeNotifier {
       hasMore = false;
     }
     notifyListeners();
-    if (aggregate) return _loadAggregate(session, more, version);
+    if (aggregate) {
+      await _loadAggregate(session, more, version);
+      restoreFailedRefresh();
+      if (version == _version) notifyListeners();
+      return;
+    }
     try {
       if (categories) {
-        final data = await api.read(
+        final data = await _read(
           session,
           '/api/music/songList/tags',
           query: {'source': source.name},
@@ -159,7 +287,7 @@ class DiscoveryController extends ChangeNotifier {
         }
       }
       final requestedPage = page + 1;
-      final data = await api.read(
+      final data = await _read(
         session,
         keyword.isEmpty
             ? '/api/music/songList/list'
@@ -211,6 +339,7 @@ class DiscoveryController extends ChangeNotifier {
       if (version == _version) error = '歌单数据不兼容，请尝试其他平台';
     } finally {
       if (version == _version) {
+        restoreFailedRefresh();
         loading = false;
         notifyListeners();
       }
@@ -253,7 +382,7 @@ class DiscoveryController extends ChangeNotifier {
         targets.where(_more.contains).map((platform) async {
           try {
             if (query.isEmpty && !_defaultSorts.containsKey(platform)) {
-              final tags = await api.read(
+              final tags = await _read(
                 session,
                 '/api/music/songList/tags',
                 query: {'source': platform.name},
@@ -268,7 +397,7 @@ class DiscoveryController extends ChangeNotifier {
                   : '${sorts.first['id']}';
             }
             final next = (_pages[platform] ?? 0) + 1;
-            final data = await api.read(
+            final data = await _read(
               session,
               query.isEmpty
                   ? '/api/music/songList/list'

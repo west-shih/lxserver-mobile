@@ -1,3 +1,5 @@
+import '../../shared/remembered_page.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../app/controller.dart';
@@ -15,7 +17,27 @@ class SearchScreen extends StatefulWidget {
   State<SearchScreen> createState() => _SearchScreenState();
 }
 
-class _SearchScreenState extends State<SearchScreen> {
+class _SearchScreenState extends State<SearchScreen>
+    with RememberedPage<SearchScreen> {
+  @override
+  AppController get browseApp => widget.controller;
+  @override
+  String get browseKey => 'home.search';
+  @override
+  ScrollController get browseScroll => _scroll;
+  @override
+  Map<String, dynamic> saveView() => {
+    'page': _visiblePage,
+    'queryKey': _queryKey,
+  };
+  @override
+  void restoreView(Map<String, dynamic> value) {
+    _visiblePage = value['page'] is int
+        ? (value['page'] as int).clamp(0, 1000000)
+        : 0;
+    _queryKey = value['queryKey'] is String ? value['queryKey'] as String : '';
+  }
+
   final _scroll = ScrollController();
   String? _queryKey, _filledKey;
   int _visiblePage = 0;
@@ -111,7 +133,7 @@ class _SearchScreenState extends State<SearchScreen> {
       children: [
         Expanded(
           child: RefreshIndicator(
-            onRefresh: c.refreshSources,
+            onRefresh: () => c.api.refreshBrowse(c.refreshSources),
             child: CustomScrollView(
               key: const PageStorageKey('music-results-scroll'),
               controller: _scroll,

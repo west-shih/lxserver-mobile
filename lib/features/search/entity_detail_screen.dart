@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../shared/remembered_page.dart';
+
 import '../../app/controller.dart';
 import '../../app/theme.dart';
 import '../../core/lx_api.dart';
@@ -29,7 +31,30 @@ class EntityDetailScreen extends StatefulWidget {
   State<EntityDetailScreen> createState() => _EntityDetailScreenState();
 }
 
-class _EntityDetailScreenState extends State<EntityDetailScreen> {
+class _EntityDetailScreenState extends State<EntityDetailScreen>
+    with RememberedPage<EntityDetailScreen> {
+  @override
+  AppController get browseApp => widget.controller;
+  @override
+  String get browseKey =>
+      'detail.entity:${widget.entity.source.name}:${widget.entity.artist}:${widget.entity.id}';
+  @override
+  ScrollController get browseScroll => _scroll;
+  @override
+  Map<String, dynamic> saveView() => {
+    'page': _page,
+    'albums': _albums,
+    'expanded': _expanded,
+    'model': d.loading ? c.pageState(browseKey)['model'] : d.snapshot(),
+  };
+  @override
+  void restoreView(Map<String, dynamic> value) {
+    _page = value['page'] is int ? (value['page'] as int).clamp(0, 1000000) : 0;
+    _albums = value['albums'] == true;
+    _expanded = value['expanded'] == true;
+    if (value['model'] is Map) d.restoreSnapshot(value['model']);
+  }
+
   late final EntityDetailController d;
   bool _albums = false, _expanded = false, _downloading = false;
   bool _selecting = false, _saving = false;
@@ -46,13 +71,14 @@ class _EntityDetailScreenState extends State<EntityDetailScreen> {
   AppController get c => widget.controller;
   @override
   void initState() {
-    super.initState();
     d = EntityDetailController(c.api, c.session!, widget.entity, c.expire);
-    d.load();
+    super.initState();
+    d.addListener(rememberView);
+    if (!d.restoredSnapshot) d.load();
     c.refreshServerFiles();
     c.addListener(_sessionChanged);
     // Refresh favorite state when arriving directly from a search result.
-    c.library.load(d.session);
+    if (!c.library.hasSnapshot) c.library.load(d.session);
   }
 
   void _sessionChanged() {
@@ -64,6 +90,8 @@ class _EntityDetailScreenState extends State<EntityDetailScreen> {
 
   @override
   void dispose() {
+    finishRemembering();
+    d.removeListener(rememberView);
     c.removeListener(_sessionChanged);
     d.dispose();
     _scroll.dispose();
@@ -464,125 +492,141 @@ class _EntityDetailScreenState extends State<EntityDetailScreen> {
             child: Column(
               children: [
                 Expanded(
-                  child: CustomScrollView(
-                    controller: _scroll,
-                    slivers: [
-                      SliverToBoxAdapter(child: _hero()),
-                      if (d.infoError != null)
-                        SliverToBoxAdapter(
-                          child: _failure(d.infoError!, () => d.load()),
-                        ),
-                      SliverPersistentHeader(
-                        key: const ValueKey('entity-tabs-header'),
-                        pinned: true,
-                        delegate: _EntityTabs(
-                          e.artist,
-                          _albums,
-                          d.order,
-                          (albums) {
-                            if (_busy) return;
-                            setState(() {
-                              _albums = albums;
+                  child: RefreshIndicator(
+                    onRefresh: () => c.api.refreshBrowse(() async {
+                      if (_busy || _selecting) return;
+                      _page = 0;
+                      if (_albums) {
+                        await d.loadAlbums();
+                      } else {
+                        await d.load();
+                      }
+                    }),
+                    child: CustomScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      controller: _scroll,
+                      slivers: [
+                        SliverToBoxAdapter(child: _hero()),
+                        if (d.infoError != null)
+                          SliverToBoxAdapter(
+                            child: _failure(d.infoError!, () => d.load()),
+                          ),
+                        SliverPersistentHeader(
+                          key: const ValueKey('entity-tabs-header'),
+                          pinned: true,
+                          delegate: _EntityTabs(
+                            e.artist,
+                            _albums,
+                            d.order,
+                            (albums) {
+                              if (_busy) return;
+                              setState(() {
+                                _albums = albums;
+                                _page = 0;
+                                _selected.clear();
+                                _selecting = false;
+                              });
+                              if (albums && d.albums.isEmpty) d.loadAlbums();
+                            },
+                            (sort) {
+                              if (_busy) return;
                               _page = 0;
                               _selected.clear();
                               _selecting = false;
-                            });
-                            if (albums && d.albums.isEmpty) d.loadAlbums();
-                          },
-                          (sort) {
-                            if (_busy) return;
-                            _page = 0;
-                            _selected.clear();
-                            _selecting = false;
-                            d.load(sort: sort);
-                          },
-                        ),
-                      ),
-                      if (_albums) ...[
-                        EntityGrid(controller: c, items: d.albums),
-                        if (d.albumError != null)
-                          SliverToBoxAdapter(
-                            child: _failure(
-                              d.albumError!,
-                              () => d.loadAlbums(more: d.albums.isNotEmpty),
-                            ),
-                          ),
-                        if (d.loadingAlbums)
-                          const SliverToBoxAdapter(
-                            child: Padding(
-                              padding: EdgeInsets.all(24),
-                              child: Center(child: CircularProgressIndicator()),
-                            ),
-                          ),
-                        if (!d.loadingAlbums &&
-                            d.albumError == null &&
-                            d.albums.isEmpty)
-                          const SliverToBoxAdapter(
-                            child: Padding(
-                              padding: EdgeInsets.all(24),
-                              child: Center(child: Text('暂无专辑')),
-                            ),
-                          ),
-                        if (d.moreAlbums &&
-                            !d.loadingAlbums &&
-                            d.albumError == null)
-                          SliverToBoxAdapter(
-                            child: TextButton(
-                              onPressed: () => d.loadAlbums(more: true),
-                              child: const Text('加载更多专辑'),
-                            ),
-                          ),
-                      ] else ...[
-                        SliverPersistentHeader(
-                          key: const ValueKey('entity-play-header'),
-                          pinned: true,
-                          delegate: _EntityPlaybackToolbar(
-                            child: _playbackToolbar(),
+                              d.load(sort: sort);
+                            },
                           ),
                         ),
-                        if (d.loading)
-                          const SliverToBoxAdapter(
-                            child: Padding(
-                              padding: EdgeInsets.all(24),
-                              child: Center(child: CircularProgressIndicator()),
+                        if (_albums) ...[
+                          EntityGrid(controller: c, items: d.albums),
+                          if (d.albumError != null)
+                            SliverToBoxAdapter(
+                              child: _failure(
+                                d.albumError!,
+                                () => d.loadAlbums(more: d.albums.isNotEmpty),
+                              ),
+                            ),
+                          if (d.loadingAlbums)
+                            const SliverToBoxAdapter(
+                              child: Padding(
+                                padding: EdgeInsets.all(24),
+                                child: Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              ),
+                            ),
+                          if (!d.loadingAlbums &&
+                              d.albumError == null &&
+                              d.albums.isEmpty)
+                            const SliverToBoxAdapter(
+                              child: Padding(
+                                padding: EdgeInsets.all(24),
+                                child: Center(child: Text('暂无专辑')),
+                              ),
+                            ),
+                          if (d.moreAlbums &&
+                              !d.loadingAlbums &&
+                              d.albumError == null)
+                            SliverToBoxAdapter(
+                              child: TextButton(
+                                onPressed: () => d.loadAlbums(more: true),
+                                child: const Text('加载更多专辑'),
+                              ),
+                            ),
+                        ] else ...[
+                          SliverPersistentHeader(
+                            key: const ValueKey('entity-play-header'),
+                            pinned: true,
+                            delegate: _EntityPlaybackToolbar(
+                              child: _playbackToolbar(),
                             ),
                           ),
-                        if (d.error != null)
-                          SliverToBoxAdapter(
-                            child: _failure(d.error!, () => d.load()),
-                          ),
-                        if (!d.loading && d.error == null && d.songs.isEmpty)
-                          const SliverToBoxAdapter(
-                            child: Padding(
-                              padding: EdgeInsets.all(24),
-                              child: Center(child: Text('暂无歌曲')),
+                          if (d.loading)
+                            const SliverToBoxAdapter(
+                              child: Padding(
+                                padding: EdgeInsets.all(24),
+                                child: Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              ),
+                            ),
+                          if (d.error != null)
+                            SliverToBoxAdapter(
+                              child: _failure(d.error!, () => d.load()),
+                            ),
+                          if (!d.loading && d.error == null && d.songs.isEmpty)
+                            const SliverToBoxAdapter(
+                              child: Padding(
+                                padding: EdgeInsets.all(24),
+                                child: Center(child: Text('暂无歌曲')),
+                              ),
+                            ),
+                          SliverList.builder(
+                            itemCount: visible.length,
+                            itemBuilder: (_, i) => SongTile(
+                              song: visible[i],
+                              controller: c,
+                              queue: d.songs,
+                              selected: _selecting
+                                  ? _selected.contains(visible[i].id)
+                                  : null,
+                              selectionEnabled: !_busy,
+                              onSelect: !_selecting
+                                  ? null
+                                  : () => setState(() {
+                                      final id = visible[i].id;
+                                      if (!_selected.add(id)) {
+                                        _selected.remove(id);
+                                      }
+                                    }),
                             ),
                           ),
-                        SliverList.builder(
-                          itemCount: visible.length,
-                          itemBuilder: (_, i) => SongTile(
-                            song: visible[i],
-                            controller: c,
-                            queue: d.songs,
-                            selected: _selecting
-                                ? _selected.contains(visible[i].id)
-                                : null,
-                            selectionEnabled: !_busy,
-                            onSelect: !_selecting
-                                ? null
-                                : () => setState(() {
-                                    final id = visible[i].id;
-                                    if (!_selected.add(id)) {
-                                      _selected.remove(id);
-                                    }
-                                  }),
-                          ),
-                        ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
-                if (paged && d.songs.isNotEmpty)
+                if (paged && pages > 1)
                   ResultPagination(
                     page: current,
                     pageCount: pages,

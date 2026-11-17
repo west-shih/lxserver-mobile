@@ -125,7 +125,7 @@ void main() {
       );
       final c = CommentsController(api, session, song, () {});
       final old = c.load();
-      await c.load(category: 'new');
+      final newer = c.load(category: 'new');
       hot.complete(
         http.Response(
           jsonEncode({
@@ -137,6 +137,7 @@ void main() {
         ),
       );
       await old;
+      await newer;
       expect(c.items.single['text'], 'Latest');
       expect(c.maxPage, 2);
       await c.load(targetPage: 2);

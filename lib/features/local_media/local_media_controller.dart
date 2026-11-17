@@ -111,7 +111,8 @@ class LocalMediaController extends ChangeNotifier {
   final Set<String> _pinned = {};
   Session? _session;
   String _scope = '';
-  int cacheLimitMb = 512;
+  static const cacheLimitsMb = [0, 256, 512, 1024, 2048, 3072, 4096, 5120];
+  int cacheLimitMb = 2048;
   int _cacheEpoch = 0;
   AudioTransfer? _cacheTransfer;
   String? _cacheKey;
@@ -211,7 +212,7 @@ class LocalMediaController extends ChangeNotifier {
       if (await index.exists()) {
         final value = jsonDecode(await index.readAsString()) as Map;
         final limit = value['cacheLimitMb'];
-        if (limit is int && [0, 256, 512, 1024, 2048].contains(limit)) {
+        if (limit is int && cacheLimitsMb.contains(limit)) {
           cacheLimitMb = limit;
         }
         for (final row in value['files'] as List? ?? []) {
@@ -529,7 +530,7 @@ class LocalMediaController extends ChangeNotifier {
   }
 
   Future<void> setCacheLimit(int mb) async {
-    if (![0, 256, 512, 1024, 2048].contains(mb)) return;
+    if (!cacheLimitsMb.contains(mb)) return;
     await initialize();
     cacheLimitMb = mb;
     _cacheEpoch++;
@@ -832,6 +833,19 @@ class LocalMediaController extends ChangeNotifier {
       if (current()) {
         job.state = DownloadState.failed;
         job.error = e is ApiFailure ? e.message : '下载失败，请重试';
+        if (e is ApiFailure &&
+            (e.kind == FailureKind.server ||
+                e.kind == FailureKind.rateLimited)) {
+          for (final pending in _jobs.where(
+            (j) =>
+                j.scope == job.scope &&
+                j.song.source == job.song.source &&
+                j.state == DownloadState.queued,
+          )) {
+            pending.state = DownloadState.paused;
+            pending.error = '该平台请求失败，已暂停后续下载，请稍后手动继续';
+          }
+        }
         if (e is ApiFailure && e.unauthorized) onUnauthorized();
       }
     } finally {

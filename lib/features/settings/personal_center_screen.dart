@@ -1,8 +1,11 @@
+import '../../app/browse_navigation.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../shared/app_modal.dart';
 
 import '../../app/controller.dart';
+import '../../core/browse_cache.dart';
 import '../../app/theme.dart';
 import '../local_media/local_media_screens.dart';
 import '../player/quality.dart';
@@ -183,9 +186,7 @@ class PersonalCenterScreen extends StatelessWidget {
                     color: const Color(0xFF3867C8),
                     onTap: () => Navigator.push(
                       context,
-                      MaterialPageRoute<void>(
-                        builder: (_) => DownloadsScreen(controller: controller),
-                      ),
+                      browseRoute(DownloadsScreen(controller: controller)),
                     ),
                   ),
                 ),
@@ -201,10 +202,7 @@ class PersonalCenterScreen extends StatelessWidget {
                     color: lxGreen,
                     onTap: () => Navigator.push(
                       context,
-                      MaterialPageRoute<void>(
-                        builder: (_) =>
-                            CacheSettingsScreen(controller: controller),
-                      ),
+                      browseRoute(CacheSettingsScreen(controller: controller)),
                     ),
                   ),
                 ),
@@ -225,6 +223,7 @@ class PersonalCenterScreen extends StatelessWidget {
                     ),
                     title: const Text('列表浏览'),
                     trailing: DropdownButton<int>(
+                      key: const ValueKey('collection-page-size-setting'),
                       borderRadius: BorderRadius.circular(12),
                       dropdownColor: Colors.white,
                       value: controller.pagedCollections
@@ -256,6 +255,49 @@ class PersonalCenterScreen extends StatelessWidget {
                         }
                       },
                     ),
+                  ),
+                  ListTile(
+                    leading: const Icon(
+                      Icons.folder_copy_outlined,
+                      color: lxGreen,
+                    ),
+                    title: const Text('浏览缓存容量'),
+                    subtitle: const Text('页面状态单独保留，不随内容缓存淘汰'),
+                    trailing: DropdownButton<int>(
+                      value: controller.browseLimitMb,
+                      items: [
+                        for (final value in BrowseCache.limitsMb)
+                          DropdownMenuItem(
+                            value: value,
+                            child: Text(
+                              value >= 1024
+                                  ? '${value ~/ 1024} GB'
+                                  : '$value MB',
+                            ),
+                          ),
+                      ],
+                      onChanged: (value) async {
+                        if (value != null) {
+                          await controller.setBrowseLimit(value);
+                        }
+                      },
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(
+                      Icons.cleaning_services_outlined,
+                      color: lxGreen,
+                    ),
+                    title: const Text('清理浏览缓存'),
+                    subtitle: const Text('本地优先、下拉更新；不删除页面位置、下载和音频缓存'),
+                    onTap: () async {
+                      await controller.api.browseCache?.clear();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('已清理浏览缓存，当前页面保留已显示内容')),
+                        );
+                      }
+                    },
                   ),
                   ListTile(
                     contentPadding: const EdgeInsets.symmetric(

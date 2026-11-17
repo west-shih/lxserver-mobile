@@ -38,7 +38,7 @@
 | --- | --- |
 | 成功/失败音质 | 成功档位按服务器、账号、源配置与默认值关联，最多 200 条；不因过了 6 小时重新试高档。失败只在内存退避 30 秒 |
 | 播放地址 | 内存最多复用 5 分钟；失效重新解析，不持久保存签名 URL |
-| 本机音频缓存 | 完整、解码加载已接受的文件才登记；默认全机应用缓存上限 512 MB，可关闭或设置 256 MB / 1 GB / 2 GB；不按固定天数自动过期 |
+| 本机音频缓存 | 完整、解码加载已接受的文件才登记；新用户默认全机应用缓存上限 2 GB，可关闭或设置 256 MB / 512 MB / 1 GB / 2 GB / 3 GB / 4 GB / 5 GB，已有有效设置保持不变；不按固定天数自动过期 |
 | 主动下载 | 独立文件，不受缓存容量淘汰与清缓存影响；卸载应用会删除私有文件 |
 
 ## 本机缓存身份与去重
@@ -93,3 +93,6 @@ Android 夹具验证网络、解码、缓存/下载、音质切换、离线恢�
 Android 配置 WAKE_LOCK、FOREGROUND_SERVICE、FOREGROUND_SERVICE_MEDIA_PLAYBACK，MainActivity 继承 AudioServiceActivity；暂停后保留前台媒体服务以支持锁屏继续，用户可用停止操作结束。iOS 声明 audio 后台模式；当前 Windows 环境不能构建或验收 iOS。系统卡片外观由系统决定。
 
 源码依据：固定 v2.2.0 / 13865b82 的 public/music/app.js 中 mediaSession 操作处理与 updateMediaSessionMetadata；原生客户端通过插件实现，不新增服务端契约。[插件接入文档](https://pub.dev/packages/audio_service)、[音频会话文档](https://pub.dev/packages/audio_session)。system_audio_handler_test 覆盖恢复不抢占卡片、元数据/按钮、幂等播放暂停、进度/下一首委派及退出清理。锁屏外观、熄屏连续切歌、暂停后继续、耳机/来电打断及 iOS 均须设备验收，单元测试不替代这些结果。
+## 浏览缓存与播放失败边界
+
+浏览响应、歌词及公开封面由独立 BrowseCache 管理，默认 128 MiB、可配置，与上述四类播放记录分开；清理浏览缓存不触碰音频与下载文件，下载封面仍由 LocalArtwork 管理。播放 URL 不进入该持久化缓存。LxApi 对未被识别为既有音源能力错误的 HTTP 5xx 标记 server，HTTP 429 标记 rateLimited；两者终止本次 loadWithQualityFallback，不继续解析其他源或降低音质。它们不是“已证实网易风控”的分类。下载任务遇这两类错误时，当前任务失败，同账号同平台的排队任务变为暂停，其他平台可继续；用户手动继续才重新尝试。服务端 SDK 自身重试不在客户端控制范围内。

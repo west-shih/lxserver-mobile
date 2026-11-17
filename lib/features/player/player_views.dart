@@ -1,3 +1,4 @@
+import '../../app/browse_navigation.dart';
 import '../../app/controller.dart';
 
 import 'package:flutter/material.dart';
@@ -46,9 +47,8 @@ class MiniPlayer extends StatelessWidget {
             InkWell(
               borderRadius: BorderRadius.circular(22),
               onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) =>
-                      PlayerScreen(player: player, controller: controller),
+                browseRoute(
+                  PlayerScreen(player: player, controller: controller),
                 ),
               ),
               child: Padding(

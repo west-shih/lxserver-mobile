@@ -1,3 +1,5 @@
+import '../../shared/remembered_page.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../app/controller.dart';
@@ -14,10 +16,25 @@ class EntitySearchScreen extends StatefulWidget {
   State<EntitySearchScreen> createState() => _EntitySearchScreenState();
 }
 
-class _EntitySearchScreenState extends State<EntitySearchScreen> {
+class _EntitySearchScreenState extends State<EntitySearchScreen>
+    with RememberedPage<EntitySearchScreen> {
   int _page = 0;
   String _key = '';
   String? _fillKey;
+  @override
+  AppController get browseApp => widget.controller;
+  @override
+  String get browseKey => 'home.entity';
+  @override
+  ScrollController get browseScroll => _scroll;
+  @override
+  Map<String, dynamic> saveView() => {'page': _page, 'queryKey': _key};
+  @override
+  void restoreView(Map<String, dynamic> value) {
+    _page = value['page'] is int ? (value['page'] as int).clamp(0, 1000000) : 0;
+    _key = value['queryKey'] is String ? value['queryKey'] as String : '';
+  }
+
   final _scroll = ScrollController();
   @override
   void dispose() {
@@ -90,14 +107,14 @@ class _EntitySearchScreenState extends State<EntitySearchScreen> {
         children: [
           Expanded(
             child: RefreshIndicator(
-              onRefresh: () async {
+              onRefresh: () => c.api.refreshBrowse(() async {
                 await c.refreshSources(reloadResults: false);
                 if (c.session == session &&
                     session != null &&
                     c.entitySources.isNotEmpty) {
                   await d.search(session, d.keyword);
                 }
-              },
+              }),
               child: CustomScrollView(
                 controller: _scroll,
                 physics: const AlwaysScrollableScrollPhysics(),

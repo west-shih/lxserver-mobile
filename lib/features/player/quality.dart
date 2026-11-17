@@ -233,6 +233,8 @@ Future<PlaybackResource?> loadWithQualityFallback({
       (e.unauthorized ||
           e.kind == FailureKind.network ||
           e.kind == FailureKind.permission ||
+          e.kind == FailureKind.server ||
+          e.kind == FailureKind.rateLimited ||
           e.kind == FailureKind.storage);
   void validate(PlaybackResource resource) {
     if (AudioQuality.find(resource.reportedQuality) != null &&

@@ -5,6 +5,7 @@ import 'dart:async';
 import '../features/connection/login_screen.dart';
 import 'home.dart';
 import 'controller.dart';
+import 'browse_navigation.dart';
 import 'theme.dart';
 
 class LxApp extends StatefulWidget {
@@ -16,6 +17,7 @@ class LxApp extends StatefulWidget {
 
 class _LxAppState extends State<LxApp> with WidgetsBindingObserver {
   final _navigator = GlobalKey<NavigatorState>();
+  late final _browseObserver = BrowseNavigatorObserver(controller);
   AppController get controller => widget.controller;
   bool _hadSession = false;
   @override
@@ -57,6 +59,7 @@ class _LxAppState extends State<LxApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) => MaterialApp(
     title: 'LXServer Mobile',
     navigatorKey: _navigator,
+    navigatorObservers: [_browseObserver],
     debugShowCheckedModeBanner: false,
     theme: ThemeData(
       useMaterial3: true,

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -216,6 +217,43 @@ void main() {
     await m.flush();
     m.dispose();
   }
+
+  test('server failure pauses later downloads on the same platform', () async {
+    final gate = Completer<http.Response>();
+    final started = Completer<void>();
+    var resolutions = 0;
+    final api = LxApi(
+      client: MockClient((r) async {
+        if (r.url.path.endsWith('/cache/check')) {
+          return http.Response('{"exists":false}', 200);
+        }
+        resolutions++;
+        if (!started.isCompleted) started.complete();
+        return gate.future;
+      }),
+    );
+    final m = LocalMediaController(api, () {}, directory: () async => root);
+    await m.enqueue(s, song, 'flac');
+    await started.future;
+    await m.enqueue(
+      s,
+      Song({'songmid': 'second-fixture'}, song.source),
+      'flac',
+    );
+    gate.complete(http.Response('{}', 500));
+    for (
+      var i = 0;
+      i < 100 && m.jobs.first.state != DownloadState.failed;
+      i++
+    ) {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+    expect(resolutions, 1);
+    expect(m.jobs.first.state, DownloadState.failed);
+    expect(m.jobs.last.state, DownloadState.paused);
+    await close(m);
+    api.close();
+  });
 
   test('Automatic caching is only labelled after completion and is reused without network', () async {
     final m = media();

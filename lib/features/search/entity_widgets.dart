@@ -1,3 +1,5 @@
+import '../../app/browse_navigation.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../app/controller.dart';
@@ -12,9 +14,7 @@ import 'artist_card.dart';
 void openEntity(BuildContext context, AppController c, MusicEntity entity) {
   Navigator.push(
     context,
-    MaterialPageRoute<void>(
-      builder: (_) => EntityDetailScreen(controller: c, entity: entity),
-    ),
+    browseRoute(EntityDetailScreen(controller: c, entity: entity)),
   );
 }
 
