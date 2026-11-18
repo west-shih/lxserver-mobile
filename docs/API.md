@@ -22,7 +22,11 @@
 
 `POST /api/music/comment`，沿用普通用户请求头，JSON 为 `{songInfo: 原始平台歌曲信息, type: "hot" 或 "new", page: 从1开始, limit: 20}`。服务端按歌曲 source 调用 getHotComment/getComment，不跨平台合并。返回 `{source, comments, total, page, limit, maxPage}`；评论字段包括 id、text、userName、avatar、timeStr、likedCount、reply。平台字段可能缺失，前端保留空值兼容；只展示文本、现有回复及点赞数，不提供写操作。
 
-服务端不支持该平台方法或上游失败时可能返回 500；客户端显示可重试状态，不把失败当作零评论。页面切换分类、关闭后丢弃过期响应。这里只核对固定基线和夹具，实际部署/平台评论可用性待实测。
+服务端不支持该平台方法或上游失败时可能返回 500；客户端显示可重试状态和已脱敏的 HTTP/网络错误，不展示服务端原始错误体，不把失败当作零评论。页面切换分类、关闭后丢弃过期响应。
+
+QQ 评论 SDK 的 getSongId 优先直接使用 songId，否则用 songmid 查询数字 ID。客户端评论请求按 meta.songId、根 songId、数字 songmid 顺序选取纯数字值填充 songId；无数字值时移除不合法 songId，让服务端按 MID 查询，不修改原歌曲或其他接口。依据固定基线 tx/comment.js:getSongId 和 server.ts:normalizeSongInfo；comments_mode_test 覆盖两类 ID、嵌套元数据、原对象保留及安全错误提示。
+
+2026-11-18 对用户部署（公开配置自报 v2.2.0/buildHash 6c6462d，完整 commit 未确认）只读实测：同一 QQ 歌曲内网、公网 POST 最热均 200/7 条，最新均 200/20 条；MID 错填 songId、仅数字 songmid 均返回 500，数字 songId 返回 200。此为该曲接口验证，尚不能证明手机原请求失败原因，也不扩大其他平台支持范围；修复后手机页面待复核。
 
 ## 证据基线
 

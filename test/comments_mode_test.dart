@@ -83,6 +83,58 @@ void main() {
       {'type': 'flac'},
     ],
   }, MusicSource.kw);
+  test(
+    'QQ comments distinguish numeric IDs from MIDs without changing songs',
+    () async {
+      final payloads = <Map>[];
+      final api = LxApi(
+        client: MockClient((request) async {
+          payloads.add((jsonDecode(request.body) as Map)['songInfo'] as Map);
+          return http.Response('{"comments":[]}', 200);
+        }),
+      );
+      final mid = Song({
+        'songmid': 'fixture-mid',
+        'songId': 'fixture-mid',
+      }, MusicSource.tx);
+      await api.comments(session, mid);
+      expect(payloads.last.containsKey('songId'), false);
+      expect(payloads.last['songmid'], 'fixture-mid');
+      expect(mid.raw['songId'], 'fixture-mid');
+      await api.comments(session, Song({'songmid': '12345'}, MusicSource.tx));
+      expect(payloads.last['songId'], '12345');
+      await api.comments(
+        session,
+        Song({
+          'songmid': 'fixture-mid',
+          'meta': {'songId': '67890'},
+        }, MusicSource.tx),
+      );
+      expect(payloads.last['songId'], '67890');
+      await api.comments(session, song);
+      expect(payloads.last, song.raw);
+    },
+  );
+  test(
+    'Comments retain safe HTTP diagnostics instead of hiding the failure',
+    () async {
+      final c = CommentsController(
+        LxApi(
+          client: MockClient(
+            (_) async =>
+                http.Response('{"error":"private server detail"}', 500),
+          ),
+        ),
+        session,
+        song,
+        () {},
+      );
+      await c.load();
+      expect(c.error, contains('HTTP 500'));
+      expect(c.error, isNot(contains('private server detail')));
+      c.dispose();
+    },
+  );
   test('Queue modes stop, wrap, repeat only on completion, and random excludes current', () {
     expect(nextQueueIndex(PlaybackMode.order, 2, 3, completed: true), null);
     expect(nextQueueIndex(PlaybackMode.list, 2, 3, completed: true), 0);

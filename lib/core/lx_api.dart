@@ -606,13 +606,30 @@ class LxApi {
     Song song, {
     String type = 'hot',
     int page = 1,
-  }) => _request(
-    s.server,
-    '/api/music/comment',
-    session: s,
-    method: 'POST',
-    body: {'songInfo': song.raw, 'type': type, 'page': page, 'limit': 20},
-  );
+  }) {
+    final info = Map<String, dynamic>.from(song.raw);
+    if (song.source == MusicSource.tx) {
+      // QQ comment SDK expects a numeric songId; a MID belongs in songmid.
+      final meta = info['meta'] is Map ? info['meta'] as Map : const {};
+      final numericId = [
+        meta['songId'],
+        info['songId'],
+        info['songmid'],
+      ].map((v) => '$v').where((v) => RegExp(r'^\d+$').hasMatch(v)).firstOrNull;
+      if (numericId != null) {
+        info['songId'] = numericId;
+      } else {
+        info.remove('songId');
+      }
+    }
+    return _request(
+      s.server,
+      '/api/music/comment',
+      session: s,
+      method: 'POST',
+      body: {'songInfo': info, 'type': type, 'page': page, 'limit': 20},
+    );
+  }
 
   Future<Session> login(Uri server, String username, String password) async {
     final data = await _request(

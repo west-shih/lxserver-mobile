@@ -45,7 +45,7 @@ class CommentsController extends ChangeNotifier {
           .clamp(1, 1000000);
     } on ApiFailure catch (e) {
       if (version != _generation) return;
-      error = e.unauthorized ? '登录已失效' : '评论暂时无法加载，请重试';
+      error = e.unauthorized ? '登录已失效' : '评论加载失败：${e.message}';
       if (e.unauthorized) onUnauthorized();
     } catch (_) {
       if (version == _generation) error = '评论暂时无法加载，请重试';
