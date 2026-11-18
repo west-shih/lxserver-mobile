@@ -75,7 +75,7 @@ void main() {
     hasMoreSources: more,
   );
 
-  test('Exact server cache hit plays before link cache or resolver', () async {
+  test('Reusable URL skips the server cache check and resolver', () async {
     final events = <String>[];
     final cache = PlaybackCache()..success('scope', song, resource('flac'));
     final result = await loadWithQualityFallback(
@@ -97,8 +97,87 @@ void main() {
       isCurrent: () => true,
       onAttempt: (_) {},
     );
-    expect(result!.serverCached, true);
-    expect(events, ['server:flac', 'file']);
+    expect(result!.serverCached, false);
+    expect(events, ['link']);
+  });
+  test(
+    'Connection failure uses a local fallback without changing preference',
+    () async {
+      final cache = PlaybackCache()
+        ..success('scope', song, resource('flac'), preference: 'flac');
+      cache.invalidateUrl('scope', song, 'flac');
+      var resolves = 0;
+      final result = await loadWithQualityFallback(
+        song: song,
+        preference: 'flac',
+        cache: cache,
+        scope: 'scope',
+        recoverPlaybackConnection: true,
+        localFile: (q) async => q == '320k'
+            ? PlaybackResource(Uri.file('/fixture.mp3'), q, q, localFile: true)
+            : null,
+        resolve: (_) async {
+          resolves++;
+          throw const ApiFailure(
+            'Disconnected',
+            kind: FailureKind.network,
+            connectionFailed: true,
+          );
+        },
+        load: (_) async {},
+        isCurrent: () => true,
+        onAttempt: (_) {},
+      );
+      expect(result?.requestedQuality, '320k');
+      expect(resolves, 1);
+      expect(cache.successful('scope', song, preference: 'flac'), 'flac');
+    },
+  );
+
+  test('Playback resolution retries a connection failure only once', () async {
+    var resolves = 0;
+    final disconnected = http.ClientException('Connection closed');
+    final api = LxApi(
+      client: MockClient((_) async {
+        resolves++;
+        throw disconnected;
+      }),
+    );
+    addTearDown(api.close);
+    await expectLater(
+      loadWithQualityFallback(
+        song: song,
+        preference: 'flac',
+        recoverPlaybackConnection: true,
+        resolve: (q) => api.resolvePlayback(session, song, quality: q),
+        load: (_) async {},
+        isCurrent: () => true,
+        onAttempt: (_) {},
+      ),
+      throwsA(
+        isA<ApiFailure>().having(
+          (e) => e.connectionFailed,
+          'connectionFailed',
+          true,
+        ),
+      ),
+    );
+    expect(resolves, 2);
+  });
+
+  test('Only confirmed server cache misses suppress repeated checks', () async {
+    var checks = 0;
+    final api = LxApi(
+      client: MockClient((_) async {
+        if (++checks == 1) throw http.ClientException('Disconnected');
+        return http.Response('{"exists":false}', 200);
+      }),
+    );
+    addTearDown(api.close);
+    expect(await api.cachedPlayback(session, song, 'flac'), null);
+    expect(await api.cachedPlayback(session, song, 'flac'), null);
+    expect(await api.cachedPlayback(session, song, 'flac'), null);
+    expect(checks, 2);
   });
   test(
     'Broken server file falls through to streaming at the same quality',
@@ -161,6 +240,7 @@ void main() {
           preference: 'flac',
           cache: cache,
           scope: 'scope',
+          recoverPlaybackConnection: true,
           resolve: (q) async {
             calls++;
             throw const ApiFailure('Offline', kind: FailureKind.network);

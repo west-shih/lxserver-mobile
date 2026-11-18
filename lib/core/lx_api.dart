@@ -40,10 +40,12 @@ class ApiFailure implements Exception {
     this.message, {
     this.unauthorized = false,
     this.kind = FailureKind.unknown,
+    this.connectionFailed = false,
   });
   final String message;
   final bool unauthorized;
   final FailureKind kind;
+  final bool connectionFailed;
   @override
   String toString() => message;
 }
@@ -285,6 +287,7 @@ class LxApi {
     '/api/music/lyric',
   };
   final http.Client _client;
+  final _playbackCacheMisses = <(Session, String, String), DateTime>{};
   Future<Object> _requestJson(
     Uri server,
     String path, {
@@ -510,7 +513,11 @@ class LxApi {
     } on TimeoutException {
       throw const ApiFailure('请求超时，请检查网络或稍后重试', kind: FailureKind.network);
     } on http.ClientException {
-      throw const ApiFailure('无法连接服务器，请检查地址、网络和证书', kind: FailureKind.network);
+      throw const ApiFailure(
+        '无法连接服务器，请检查地址、网络和证书',
+        kind: FailureKind.network,
+        connectionFailed: true,
+      );
     }
   }
 
@@ -750,6 +757,13 @@ class LxApi {
     String quality,
   ) async {
     if (!song.isOnline || song.name.isEmpty || song.singer.isEmpty) return null;
+    final key = (s, song.id, quality);
+    final missedAt = _playbackCacheMisses[key];
+    if (missedAt != null &&
+        DateTime.now().difference(missedAt) < const Duration(seconds: 30)) {
+      return null;
+    }
+    _playbackCacheMisses.remove(key);
     try {
       final value = await _requestJson(
         s.server,
@@ -766,6 +780,15 @@ class LxApi {
           'exactQuality': '1',
         },
       );
+      if (value is Map &&
+          value['exists'] == false &&
+          value['isCollision'] != true) {
+        _playbackCacheMisses[key] = DateTime.now();
+        if (_playbackCacheMisses.length > 100) {
+          _playbackCacheMisses.remove(_playbackCacheMisses.keys.first);
+        }
+        return null;
+      }
       if (value is! Map ||
           value['exists'] != true ||
           value['isCollision'] == true ||

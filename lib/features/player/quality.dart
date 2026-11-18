@@ -220,6 +220,7 @@ Future<PlaybackResource?> loadWithQualityFallback({
   Future<PlaybackResource?> Function(String)? serverCache,
   Future<PlaybackResource?> Function(String)? localFile,
   bool localFirst = false,
+  bool recoverPlaybackConnection = false,
   Future<PlaybackResource> Function(String, List<String>)? resolveFromSources,
   Duration recoveryBudget = const Duration(seconds: 30),
   int maxResolutions = 4,
@@ -228,6 +229,7 @@ Future<PlaybackResource?> loadWithQualityFallback({
   final watch = Stopwatch()..start();
   var resolutions = 0;
   var onlineUnavailable = false;
+  var retriedConnection = false;
   bool fatal(Object e) =>
       e is ApiFailure &&
       (e.unauthorized ||
@@ -254,19 +256,33 @@ Future<PlaybackResource?> loadWithQualityFallback({
     respectMetadata: working == null && respectMetadata,
   );
   final candidates = [?working, ...planned.where((q) => q != working)];
-  Future<PlaybackResource?> tryLocal(String quality) async {
+  final checkedLocal = <String>{};
+  Future<PlaybackResource?> tryLocal(
+    String quality, {
+    bool remember = true,
+  }) async {
+    if (!checkedLocal.add(quality)) return null;
     final local = await localFile?.call(quality);
     if (!isCurrent() || local == null) return null;
     try {
       onAttempt(quality);
       await load(local);
       if (!isCurrent()) return null;
-      cache?.success(scope, song, local, preference: preference);
+      if (remember) cache?.success(scope, song, local, preference: preference);
       return local;
     } catch (e) {
       if (fatal(e)) rethrow;
       return null;
     }
+  }
+
+  Future<PlaybackResource?> recoverFromLocal() async {
+    for (final quality in {...candidates, ...supported}) {
+      if (!isCurrent()) return null;
+      final local = await tryLocal(quality, remember: false);
+      if (local != null) return local;
+    }
+    return null;
   }
 
   if (localFirst && localFile != null) {
@@ -288,27 +304,6 @@ Future<PlaybackResource?> loadWithQualityFallback({
         final local = await tryLocal(quality);
         if (local != null) return local;
       }
-      if (serverCache != null) {
-        final local = await serverCache(quality);
-        if (!isCurrent()) return null;
-        if (local != null) {
-          try {
-            validate(local);
-            await load(local);
-            if (!isCurrent()) return null;
-            cache?.success(scope, song, local, preference: preference);
-            return local;
-          } catch (e) {
-            if (!isCurrent()) return null;
-            if (fatal(e)) rethrow;
-            // Stale/broken server cache must not prevent online resolution.
-            cache?.invalidateUrl(scope, song, quality);
-          }
-        }
-      }
-      if (cache?.failed(scope, song, quality) == true && !onlineUnavailable) {
-        continue;
-      }
       var resource = cache?.resource(scope, song, quality);
       if (resource?.localFile == true) {
         // The local file lookup above is authoritative after cache clearing/deletion.
@@ -329,10 +324,31 @@ Future<PlaybackResource?> loadWithQualityFallback({
           return resource;
         } catch (e) {
           if (!isCurrent()) return null;
-          if (fatal(e)) rethrow;
           cache?.invalidateUrl(scope, song, quality);
+          if (fatal(e)) rethrow;
           // An expired signed URL does not prove this quality is unavailable.
         }
+      }
+      if (serverCache != null) {
+        final local = await serverCache(quality);
+        if (!isCurrent()) return null;
+        if (local != null && local.url != resource?.url) {
+          try {
+            validate(local);
+            await load(local);
+            if (!isCurrent()) return null;
+            cache?.success(scope, song, local, preference: preference);
+            return local;
+          } catch (e) {
+            if (!isCurrent()) return null;
+            if (fatal(e)) rethrow;
+            // Stale/broken server cache must not prevent online resolution.
+            cache?.invalidateUrl(scope, song, quality);
+          }
+        }
+      }
+      if (cache?.failed(scope, song, quality) == true && !onlineUnavailable) {
+        continue;
       }
       if (onlineUnavailable) continue;
       final excluded = <String>{};
@@ -342,17 +358,35 @@ Future<PlaybackResource?> loadWithQualityFallback({
           throw const ApiFailure('播放准备超时，请重试', kind: FailureKind.network);
         }
         resolutions++;
-        resource =
-            await (resolveFromSources == null
-                    ? resolve(quality)
-                    : resolveFromSources(quality, excluded.toList()))
-                .timeout(
-                  remaining,
-                  onTimeout: () => throw const ApiFailure(
-                    '播放准备超时，请重试',
-                    kind: FailureKind.network,
-                  ),
-                );
+        try {
+          resource =
+              await (resolveFromSources == null
+                      ? resolve(quality)
+                      : resolveFromSources(quality, excluded.toList()))
+                  .timeout(
+                    remaining,
+                    onTimeout: () => throw const ApiFailure(
+                      '播放准备超时，请重试',
+                      kind: FailureKind.network,
+                    ),
+                  );
+        } on ApiFailure catch (e) {
+          if (!isCurrent()) return null;
+          const retryDelay = Duration(milliseconds: 350);
+          if (!recoverPlaybackConnection ||
+              !e.connectionFailed ||
+              retriedConnection ||
+              resolutions >= maxResolutions) {
+            rethrow;
+          }
+          final local = await recoverFromLocal();
+          if (local != null || !isCurrent()) return local;
+          if (recoveryBudget - watch.elapsed <= retryDelay) rethrow;
+          retriedConnection = true;
+          await Future<void>.delayed(retryDelay);
+          if (!isCurrent()) return null;
+          continue;
+        }
         if (!isCurrent()) return null;
         try {
           if (excluded.contains(resource.sourceId ?? resource.sourceName)) {
@@ -381,6 +415,12 @@ Future<PlaybackResource?> loadWithQualityFallback({
       throw const ApiFailure('已达到本次播放重试次数，请重试');
     } catch (e) {
       if (!isCurrent()) return null;
+      if (recoverPlaybackConnection &&
+          e is ApiFailure &&
+          e.kind == FailureKind.network) {
+        final local = await recoverFromLocal();
+        if (local != null || !isCurrent()) return local;
+      }
       if (fatal(e)) rethrow;
       if (e is ApiFailure && e.kind == FailureKind.sourceUnavailable) {
         onlineUnavailable = true;

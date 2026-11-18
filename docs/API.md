@@ -48,7 +48,7 @@ QQ 评论 SDK 的 getSongId 优先直接使用 songId，否则用 songmid 查询
 | POST /api/user/logout | x-user-token；服务端删除内存 Session Token；客户端同时清理本地会话并停止播放 |
 | GET /api/music/search | name/source/type=song/page/limit=20；读取对象 list 与 hasMore；平台值 kw/kg/tx/wy/mg，分别为酷我/酷狗/QQ/网易/咪咕 |
 | POST /api/music/url | x-user-token + x-user-name；JSON songInfo（保留搜索结果原始字段）、quality=所选音质 ID、enableAutoSwitchApiSource=true；响应读取 url 与 type（服务器音质标注） |
-| GET /api/music/cache/check | 用户 Token/name；name/singer/source/songmid/songId/quality/exactQuality=1；仅使用 exists=true、非 isCollision、quality 精确匹配的文件；只接受同服务器 /api/music/cache/file/ 地址。旧版 404 或缓存服务失败继续在线解析 |
+| GET /api/music/cache/check | 用户 Token/name；name/singer/source/songmid/songId/quality/exactQuality=1；仅使用 exists=true、非 isCollision、quality 精确匹配的文件；只接受同服务器 /api/music/cache/file/ 地址。基线服务端对明确未命中返回 exists=false，客户端短时复用该结果；旧版 404 或缓存服务失败继续在线解析 |
 
 - 用户 Token 是内存会话，重启或过期后需重新登录；不保存密码做静默重登。
 - 搜索 source 不支持 all；聚合搜索由客户端对当前平台分别发起请求，不伪造聚合接口。

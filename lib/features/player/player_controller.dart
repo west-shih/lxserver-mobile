@@ -291,6 +291,7 @@ class PlayerController extends ChangeNotifier {
       await audio.stop();
       await localMedia?.releasePlayback();
       final resource = await loadWithQualityFallback(
+        recoverPlaybackConnection: true,
         localFile: (q) =>
             localMedia?.localResource(session, song, q) ?? Future.value(),
         serverCache: (quality) => api.cachedPlayback(session, song, quality),
