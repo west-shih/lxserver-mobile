@@ -3,6 +3,12 @@ import 'package:flutter/material.dart';
 import '../app/theme.dart';
 
 const modalDanger = Color(0xFFD94E64);
+const modalInputTextStyle = TextStyle(fontSize: 14, color: lxInk);
+const modalSupportingTextStyle = TextStyle(
+  fontSize: 12,
+  height: 1.4,
+  color: lxMuted,
+);
 
 ThemeData appModalTheme(ThemeData base) => base.copyWith(
   dialogTheme: DialogThemeData(
@@ -46,6 +52,8 @@ ThemeData appModalTheme(ThemeData base) => base.copyWith(
     filled: true,
     fillColor: const Color(0xFFFAFCFA),
     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    hintStyle: modalInputTextStyle.copyWith(color: lxMuted),
+    labelStyle: modalInputTextStyle.copyWith(color: lxMuted),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
       borderSide: const BorderSide(color: Color(0xFFDDE8E0)),
@@ -148,7 +156,7 @@ Future<T?> showAppSheet<T>({
                       child: Container(
                         width: 30,
                         height: 3,
-                        margin: const EdgeInsets.only(top: 9, bottom: 12),
+                        margin: const EdgeInsets.only(top: 9, bottom: 6),
                         decoration: BoxDecoration(
                           color: const Color(0xFFD5E0D9),
                           borderRadius: BorderRadius.circular(3),
@@ -186,10 +194,18 @@ class SheetHeader extends StatelessWidget {
     this.subtitle,
     this.closeLabel = '取消',
     this.trailing,
+    this.subtitleTrailing,
   });
   final String title, closeLabel;
   final String? subtitle;
-  final Widget? trailing;
+  final Widget? trailing, subtitleTrailing;
+  Widget _subtitle(int maxLines) => Text(
+    subtitle!,
+    maxLines: maxLines,
+    overflow: TextOverflow.ellipsis,
+    style: modalSupportingTextStyle,
+  );
+
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.fromLTRB(20, 0, 12, 10),
@@ -223,12 +239,23 @@ class SheetHeader extends StatelessWidget {
           ],
         ),
         if (subtitle != null)
-          Text(
-            subtitle!,
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 12, color: lxMuted, height: 1.4),
-          ),
+          if (subtitleTrailing case final accessory?)
+            LayoutBuilder(
+              builder: (context, constraints) => Row(
+                children: [
+                  Expanded(child: _subtitle(1)),
+                  const SizedBox(width: 8),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: constraints.maxWidth * .7,
+                    ),
+                    child: accessory,
+                  ),
+                ],
+              ),
+            )
+          else
+            _subtitle(3),
       ],
     ),
   );

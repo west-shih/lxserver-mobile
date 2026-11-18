@@ -128,6 +128,7 @@ class _PageJumpState extends State<_PageJump> {
               padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
               child: TextField(
                 key: const ValueKey('page-jump-input'),
+                style: modalInputTextStyle,
                 controller: _input,
                 focusNode: _focus,
                 keyboardType: TextInputType.number,

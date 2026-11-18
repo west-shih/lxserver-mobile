@@ -187,6 +187,7 @@ class PlaybackResource {
     this.hasMoreSources = false,
     this.serverCached = false,
     this.localFile = false,
+    this.downloadedFile = false,
   });
   final Uri url;
   final String requestedQuality;
@@ -196,7 +197,7 @@ class PlaybackResource {
   final String? sourceName;
   final bool hasMoreSources;
   final bool serverCached;
-  final bool localFile;
+  final bool localFile, downloadedFile;
 }
 
 class _BrowseRevalidation {
@@ -328,6 +329,7 @@ class LxApi {
       ]),
     );
     final force = refreshingBrowse;
+    final persist = path != '/api/music/lyric';
     final revalidation = Zone.current[_revalidationKey] as _BrowseRevalidation?;
     final pendingKey = BrowseCache.digest(
       '$key:${session.token}:$force:$readingCachedBrowseOnly:${identityHashCode(revalidation)}',
@@ -341,7 +343,7 @@ class LxApi {
     _interested[pendingKey] = interested;
     final generation = browseCache?.generation;
     final work = () async {
-      if (!force) {
+      if (persist && !force) {
         final cached = await browseCache?.read(key);
         if (cached != null &&
             (revalidation == null ||
@@ -383,7 +385,9 @@ class LxApi {
       try {
         final data = await result;
         Future<void> save() async {
-          if (generation != null && generation == browseCache!.generation) {
+          if (persist &&
+              generation != null &&
+              generation == browseCache!.generation) {
             final requestedPage =
                 query?['page'] ??
                 (body is Map ? body['page']?.toString() : null);
@@ -606,6 +610,7 @@ class LxApi {
     Song song, {
     String type = 'hot',
     int page = 1,
+    int limit = 20,
   }) {
     final info = Map<String, dynamic>.from(song.raw);
     if (song.source == MusicSource.tx) {
@@ -627,7 +632,7 @@ class LxApi {
       '/api/music/comment',
       session: s,
       method: 'POST',
-      body: {'songInfo': info, 'type': type, 'page': page, 'limit': 20},
+      body: {'songInfo': info, 'type': type, 'page': page, 'limit': limit},
     );
   }
 

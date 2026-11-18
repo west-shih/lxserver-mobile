@@ -20,7 +20,7 @@
 
 源码：`src/server/server.ts` 的 `/api/music/comment` 分支；`src/modules/utils/musicSdk/{kw,kg,tx,wy,mg}/comment.js` 的返回归一化。
 
-`POST /api/music/comment`，沿用普通用户请求头，JSON 为 `{songInfo: 原始平台歌曲信息, type: "hot" 或 "new", page: 从1开始, limit: 20}`。服务端按歌曲 source 调用 getHotComment/getComment，不跨平台合并。返回 `{source, comments, total, page, limit, maxPage}`；评论字段包括 id、text、userName、avatar、timeStr、likedCount、reply。平台字段可能缺失，前端保留空值兼容；只展示文本、现有回复及点赞数，不提供写操作。
+`POST /api/music/comment`，沿用普通用户请求头，JSON 为 `{songInfo: 原始平台歌曲信息, type: "hot" 或 "new", page: 从1开始, limit: 列表浏览每页数量（默认 20）}`。服务端按歌曲 source 调用 getHotComment/getComment，不跨平台合并。返回 `{source, comments, total, page, limit, maxPage}`；评论字段包括 id、text、userName、avatar、timeStr、likedCount、reply，以及部分平台的 images。基线的酷狗、酷我、QQ 部分响应映射配图；已有回复也可带头像和配图。客户端只读展示，配图地址可点击预览。咪咕最新评论上游需要前页游标，跳页范围限已加载页。
 
 服务端不支持该平台方法或上游失败时可能返回 500；客户端显示可重试状态和已脱敏的 HTTP/网络错误，不展示服务端原始错误体，不把失败当作零评论。页面切换分类、关闭后丢弃过期响应。
 

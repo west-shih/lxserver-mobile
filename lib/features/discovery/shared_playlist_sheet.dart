@@ -107,6 +107,7 @@ class _SharedPlaylistFormState extends State<_SharedPlaylistForm> {
       children: [
         DropdownButtonFormField<MusicSource>(
           initialValue: source,
+          style: modalInputTextStyle,
           decoration: const InputDecoration(labelText: '歌单来源'),
           items: widget.app.availableSources
               .map((s) => DropdownMenuItem(value: s, child: Text(s.label)))
@@ -121,6 +122,7 @@ class _SharedPlaylistFormState extends State<_SharedPlaylistForm> {
         const SizedBox(height: 12),
         TextField(
           controller: input,
+          style: modalInputTextStyle,
           enabled: !busy,
           minLines: 1,
           maxLines: 4,
@@ -130,6 +132,7 @@ class _SharedPlaylistFormState extends State<_SharedPlaylistForm> {
         const SizedBox(height: 16),
         const Text(
           '请选择与链接一致的来源，不支持跨源打开。\n酷狗请用普通版分享链接或酷狗码，不支持歌单 ID 或概念版链接。\n网易「我喜欢」歌单需要 Token，能否打开取决于服务端配置。\n打开后可在详情页收藏，不会自动导入。',
+          style: modalSupportingTextStyle,
         ),
         if (error != null)
           Padding(

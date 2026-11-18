@@ -493,13 +493,12 @@ class _EntityDetailScreenState extends State<EntityDetailScreen>
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
+                    height: 1.3,
+                    leadingDistribution: TextLeadingDistribution.even,
                   ),
                 ),
                 const SizedBox(width: 9),
-                Transform.translate(
-                  offset: Offset(0, MediaQuery.textScalerOf(context).scale(2)),
-                  child: EntityBadge(source: e.source),
-                ),
+                EntityBadge(source: e.source),
               ],
             ),
           ),

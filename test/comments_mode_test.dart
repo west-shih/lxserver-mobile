@@ -9,6 +9,8 @@ import 'package:http/testing.dart';
 import 'package:lxserver_mobile/app/controller.dart';
 import 'package:lxserver_mobile/core/lx_api.dart';
 import 'package:lxserver_mobile/features/player/comments_controller.dart';
+import 'package:lxserver_mobile/features/player/comments_sheet.dart';
+import 'package:lxserver_mobile/shared/result_pagination.dart';
 import 'package:lxserver_mobile/features/player/playback_mode.dart';
 import 'package:lxserver_mobile/features/player/player_screen.dart';
 import 'package:lxserver_mobile/shared/song_actions.dart';
@@ -264,7 +266,20 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Fixture comment'), findsOneWidget);
       expect(find.textContaining('Fixture reply'), findsOneWidget);
-      await tester.tap(find.text('最新评论'));
+      final close = tester.getCenter(find.byTooltip('关闭评论'));
+      final order = tester.getCenter(find.text('最热评论'));
+      final count = tester.getCenter(find.text('1 条'));
+      final songLabel = tester.getCenter(
+        find.text('${song.name} · ${song.sourceLabel}'),
+      );
+      expect(order.dy, greaterThan(close.dy));
+      expect(order.dy, closeTo(songLabel.dy, 1));
+      expect(songLabel.dx, lessThan(count.dx));
+      expect(count.dx, lessThan(order.dx));
+      expect(800 - close.dy, lessThan(350));
+      await tester.tap(find.text('最热评论'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('最新评论').last);
       await tester.pumpAndSettle();
       expect(find.text('Fixture comment'), findsOneWidget);
       await tester.tap(find.byTooltip('关闭评论'));
@@ -279,4 +294,69 @@ void main() {
       c.dispose();
     },
   );
+
+  testWidgets('Comments share browsing mode and page size', (tester) async {
+    final requests = <Map<String, dynamic>>[];
+    final app =
+        AppController(
+            api: LxApi(
+              client: MockClient((request) async {
+                final body = jsonDecode(request.body) as Map<String, dynamic>;
+                requests.add(body);
+                return http.Response(
+                  jsonEncode({
+                    'comments': [
+                      {'text': "Fixture page ${body['page']}"},
+                    ],
+                    'total': 25,
+                    'maxPage': 3,
+                  }),
+                  200,
+                );
+              }),
+            ),
+          )
+          ..session = session
+          ..collectionPageSize = 10;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showComments(context, app, song),
+            child: const Text('Open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ResultPagination), findsNothing);
+    await tester.tap(find.text('加载更多'));
+    await tester.pumpAndSettle();
+    expect(find.text('Fixture page 1'), findsOneWidget);
+    expect(find.text('Fixture page 2'), findsOneWidget);
+    await tester.tap(find.byTooltip('关闭评论'));
+    await tester.pumpAndSettle();
+
+    app.pagedCollections = true;
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ResultPagination), findsOneWidget);
+    await tester.tap(find.byTooltip('下一页'));
+    await tester.pumpAndSettle();
+    expect(find.text('Fixture page 1'), findsNothing);
+    expect(find.text('Fixture page 2'), findsOneWidget);
+    await tester.tap(find.text('跳页'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('输入页码'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('page-jump-input')), '3');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('跳转至第 3 页'));
+    await tester.pumpAndSettle();
+    expect(find.text('Fixture page 3'), findsOneWidget);
+    expect(requests.map((body) => body['limit']), everyElement(10));
+    await tester.pumpWidget(const SizedBox());
+    app.dispose();
+  });
 }

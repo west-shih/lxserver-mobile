@@ -92,6 +92,14 @@ class DownloadJob {
   };
 }
 
+enum LocalLyricsKind {
+  cache('cache', 'cacheLyrics'),
+  download('downloads', 'downloadLyrics');
+
+  const LocalLyricsKind(this.folder, this.indexKey);
+  final String folder, indexKey;
+}
+
 /// App-private audio files. Downloads are protected from automatic cache eviction.
 class LocalMediaController extends ChangeNotifier {
   LocalMediaController(
@@ -107,6 +115,10 @@ class LocalMediaController extends ChangeNotifier {
   Future<void>? _ready;
   Future<void> _writes = Future.value();
   final Map<String, LocalAudio> _files = {};
+  final _lyrics = {
+    for (final kind in LocalLyricsKind.values)
+      kind: <String, Map<String, dynamic>>{},
+  };
   final List<DownloadJob> _jobs = [];
   final Set<String> _pinned = {};
   Session? _session;
@@ -134,6 +146,72 @@ class LocalMediaController extends ChangeNotifier {
       .toString();
   static String artworkKey(String scope, Song song) =>
       sha256.convert(utf8.encode(jsonEncode([scope, song.id]))).toString();
+
+  bool _hasLyricsOwner(String scope, Song song, LocalLyricsKind kind) =>
+      _files.values.any(
+        (f) =>
+            f.valid &&
+            f.folder == kind.folder &&
+            f.scope == scope &&
+            f.song.id == song.id,
+      );
+
+  Future<Map<String, dynamic>> lyrics(
+    Session session,
+    Song song, {
+    required LocalLyricsKind kind,
+  }) async {
+    await initialize();
+    final scope = scopeFor(session);
+    final key = artworkKey(scope, song);
+    final entries = _lyrics[kind]!;
+    if (_hasLyricsOwner(scope, song, kind) && entries[key] != null) {
+      return entries[key]!;
+    }
+    final data = await api.lyrics(session, song);
+    if (!_disposed &&
+        _session?.token == session.token &&
+        _scope == scope &&
+        _hasLyricsOwner(scope, song, kind) &&
+        !entries.containsKey(key)) {
+      if (_lyricPayload(data) case final payload?) {
+        entries[key] = payload;
+        _save();
+      }
+    }
+    return data;
+  }
+
+  static Map<String, dynamic>? _lyricPayload(Map data) {
+    final lyric = data['lyric'];
+    if (lyric is! String || lyric.trim().isEmpty) return null;
+    final payload = <String, dynamic>{
+      'lyric': lyric,
+      if (data['tlyric'] case final String translation) 'tlyric': translation,
+    };
+    return utf8.encode(jsonEncode(payload)).length <= 256 * 1024
+        ? payload
+        : null;
+  }
+
+  Future<void> _ensureLyrics(
+    Session session,
+    Song song,
+    LocalLyricsKind kind,
+  ) async {
+    if (_disposed ||
+        _session?.token != session.token ||
+        _scope != scopeFor(session) ||
+        !_hasLyricsOwner(_scope, song, kind)) {
+      return;
+    }
+    try {
+      await lyrics(session, song, kind: kind);
+    } catch (_) {
+      // Lyrics are optional for both playback and downloads.
+    }
+  }
+
   String? artworkPath(Song song) => _artwork?.path(artworkKey(_scope, song));
   bool _needsArtwork(String scope, Song song) =>
       !_disposed &&
@@ -205,6 +283,7 @@ class LocalMediaController extends ChangeNotifier {
   Future<void> initialize() => _ready ??= _initialize();
   Future<void> _initialize() async {
     var migrateDisabledCache = false;
+    var pruneStoredLyrics = false;
     try {
       _root = Directory('${(await _directory()).path}/lx_audio');
       await Directory('${_root!.path}/cache').create(recursive: true);
@@ -232,6 +311,21 @@ class LocalMediaController extends ChangeNotifier {
           } catch (_) {
             /* A damaged record must never select an arbitrary path. */
           }
+        }
+        for (final kind in LocalLyricsKind.values) {
+          final raw = value[kind.indexKey];
+          if (raw is! Map) continue;
+          final entries = _lyrics[kind]!;
+          for (final f in _files.values) {
+            if (!f.valid || f.folder != kind.folder) continue;
+            final key = artworkKey(f.scope, f.song);
+            final data = raw[key];
+            if (data is! Map) continue;
+            if (_lyricPayload(data) case final payload?) {
+              entries[key] = payload;
+            }
+          }
+          pruneStoredLyrics |= entries.length != raw.length;
         }
         for (final row in value['jobs'] as List? ?? []) {
           try {
@@ -266,7 +360,7 @@ class LocalMediaController extends ChangeNotifier {
           artworkKey(f.scope, f.song),
       });
       await _trim();
-      if (migrateDisabledCache) _save();
+      if (migrateDisabledCache || pruneStoredLyrics) _save();
     } catch (_) {
       storageError = '本机存储暂不可用，在线播放仍可使用';
     }
@@ -383,6 +477,7 @@ class LocalMediaController extends ChangeNotifier {
       quality,
       f.reportedQuality,
       localFile: true,
+      downloadedFile: f.folder == LocalLyricsKind.download.folder,
     );
   }
 
@@ -500,6 +595,7 @@ class LocalMediaController extends ChangeNotifier {
     );
     await _trim();
     _save();
+    unawaited(_ensureLyrics(s, song, LocalLyricsKind.cache));
     _notify();
   }
 
@@ -565,11 +661,14 @@ class LocalMediaController extends ChangeNotifier {
             .where((f) => f.folder == 'cache' && !_pinned.contains(f.id))
             .toList()
           ..sort((a, b) => a.used.compareTo(b.used));
+    var removed = false;
     for (final f in entries) {
       if (cacheBytes + required <= cacheLimitMb * 1024 * 1024) break;
       if (await _file(f).exists()) await _file(f).delete();
       _files.remove(f.id);
+      removed = true;
     }
+    if (removed) _save();
   }
 
   Future<void> enqueue(
@@ -833,6 +932,7 @@ class LocalMediaController extends ChangeNotifier {
         job.state = DownloadState.completed;
         job.error = null;
         unawaited(_ensureArtwork(job.scope, job.song));
+        unawaited(_ensureLyrics(s, job.song, LocalLyricsKind.download));
       }
     } catch (e) {
       if (current()) {
@@ -881,9 +981,20 @@ class LocalMediaController extends ChangeNotifier {
 
   void _save() {
     if (_root == null || _disposed) return;
+    for (final kind in LocalLyricsKind.values) {
+      final entries = _lyrics[kind]!;
+      if (entries.isEmpty) continue;
+      final owners = {
+        for (final f in _files.values)
+          if (f.valid && f.folder == kind.folder) artworkKey(f.scope, f.song),
+      };
+      entries.removeWhere((key, _) => !owners.contains(key));
+    }
     final snapshot = jsonEncode({
       'cacheLimitMb': cacheLimitMb,
       'files': _files.values.map((f) => f.toJson()).toList(),
+      for (final kind in LocalLyricsKind.values)
+        if (_lyrics[kind]!.isNotEmpty) kind.indexKey: _lyrics[kind],
       'jobs': _jobs
           .where((j) => j.state != DownloadState.completed)
           .map((j) => j.toJson())

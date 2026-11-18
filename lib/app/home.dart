@@ -233,10 +233,7 @@ class _MusicHomeState extends State<MusicHome> implements RouteAware {
                             )
                             .toList(),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 8,
-                          ),
+                          padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
                           decoration: BoxDecoration(
                             color: lxGreen,
                             borderRadius: BorderRadius.circular(10),
@@ -252,13 +249,11 @@ class _MusicHomeState extends State<MusicHome> implements RouteAware {
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
-                              const SizedBox(width: 6),
-                              const SizedBox(
-                                width: 10,
-                                height: 6,
-                                child: CustomPaint(
-                                  painter: _SearchChevronPainter(),
-                                ),
+                              const SizedBox(width: 2),
+                              const Icon(
+                                Icons.arrow_drop_down,
+                                color: Colors.white,
+                                size: 24,
                               ),
                             ],
                           ),
@@ -345,27 +340,4 @@ class _MusicHomeState extends State<MusicHome> implements RouteAware {
       ),
     );
   }
-}
-
-class _SearchChevronPainter extends CustomPainter {
-  const _SearchChevronPainter();
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    canvas.drawPath(
-      Path()
-        ..moveTo(.8, .8)
-        ..lineTo(size.width / 2, size.height - .8)
-        ..lineTo(size.width - .8, .8),
-      paint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _SearchChevronPainter oldDelegate) => false;
 }

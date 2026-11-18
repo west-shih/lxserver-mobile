@@ -9,6 +9,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:lxserver_mobile/core/lx_api.dart';
+import 'package:lxserver_mobile/core/browse_cache.dart';
 import 'package:lxserver_mobile/app/controller.dart';
 import 'package:lxserver_mobile/features/local_media/audio_transfer.dart';
 import 'package:lxserver_mobile/features/local_media/local_media_controller.dart';
@@ -174,9 +175,16 @@ void main() {
     'name': 'Local fixture',
     'singer': 'Test',
   }, MusicSource.kw);
-  LocalMediaController media() {
+  LocalMediaController media({
+    http.Response Function()? lyrics,
+    BrowseCache? browseCache,
+  }) {
     final api = LxApi(
+      browseCache: browseCache,
       client: MockClient((r) async {
+        if (r.url.path == '/api/music/lyric' && lyrics != null) {
+          return lyrics();
+        }
         if (r.url.path.endsWith('/cache/check')) {
           return http.Response(jsonEncode({'exists': false}), 200);
         }
@@ -217,6 +225,69 @@ void main() {
     await m.flush();
     m.dispose();
   }
+
+  test('Cached and downloaded audio keep independent lyrics', () async {
+    const downloaded = '[00:01.00]Downloaded lyric';
+    const cached = '[00:01.00]Cached lyric';
+    var responseLyric = downloaded;
+    var requests = 0;
+    var online = true;
+    final browse = BrowseCache(
+      directory: () async => Directory('${root.path}/browse'),
+    );
+    LocalMediaController open() => media(
+      browseCache: browse,
+      lyrics: () {
+        requests++;
+        return online
+            ? http.Response(jsonEncode({'lyric': responseLyric}), 200)
+            : http.Response('{}', 503);
+      },
+    );
+    const download = LocalLyricsKind.download;
+    const cache = LocalLyricsKind.cache;
+    final m = open();
+    await m.enqueue(s, song, 'flac');
+    await settle(m);
+    expect((await m.lyrics(s, song, kind: download))['lyric'], downloaded);
+    expect(requests, 1);
+    online = false;
+    await expectLater(
+      m.lyrics(s, song, kind: cache),
+      throwsA(isA<ApiFailure>()),
+    );
+    online = true;
+    responseLyric = cached;
+    final resource = PlaybackResource(url, '320k', '320k');
+    final transfer = (await m.prepareCache(s, song, resource))!;
+    await m.acceptCache(s, song, resource, transfer);
+    await transfer.done;
+    await m.acceptCache(s, song, resource, transfer);
+    expect((await m.lyrics(s, song, kind: cache))['lyric'], cached);
+    expect((await m.lyrics(s, song, kind: download))['lyric'], downloaded);
+    expect(await browse.bytes(), 0);
+    await browse.clear();
+    await m.releasePlayback();
+    await m.deleteDownload(m.downloads.single);
+    expect((await m.localResource(s, song, '320k'))?.localFile, true);
+    await close(m);
+    final index = File('${root.path}/lx_audio/index.json');
+    expect(jsonDecode(await index.readAsString())['downloadLyrics'], isNull);
+
+    online = false;
+    final restored = open();
+    await restored.activate(s);
+    expect((await restored.lyrics(s, song, kind: cache))['lyric'], cached);
+    await restored.clearCache();
+    expect(await restored.localResource(s, song, '320k'), isNull);
+    await restored.flush();
+    expect(jsonDecode(await index.readAsString())['cacheLyrics'], isNull);
+    await expectLater(
+      restored.lyrics(s, song, kind: cache),
+      throwsA(isA<ApiFailure>()),
+    );
+    await close(restored);
+  });
 
   test('server failure pauses later downloads on the same platform', () async {
     final gate = Completer<http.Response>();

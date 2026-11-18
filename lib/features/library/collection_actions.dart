@@ -106,6 +106,7 @@ Future<bool> performCollectionAction(
             children: [
               TextFormField(
                 initialValue: draft,
+                style: modalInputTextStyle,
                 autofocus: true,
                 decoration: const InputDecoration(labelText: '歌单名称'),
                 onChanged: (value) => draft = value,

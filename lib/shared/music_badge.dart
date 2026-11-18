@@ -41,11 +41,11 @@ class MusicBadge extends StatelessWidget {
       style: TextStyle(
         fontSize: 10,
         height: 1.3,
+        leadingDistribution: TextLeadingDistribution.even,
         fontWeight: FontWeight.w600,
         color: Color(foreground),
       ),
     );
-    final hasChinese = RegExp(r'[\u3400-\u9fff]').hasMatch(label);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
       decoration: BoxDecoration(
@@ -53,14 +53,7 @@ class MusicBadge extends StatelessWidget {
         border: Border.all(color: Color(border)),
         borderRadius: BorderRadius.circular(4),
       ),
-      // Keep the original Latin metrics. CJK needs only a small optical
-      // correction from its natural baseline, not a forced shared line box.
-      child: hasChinese
-          ? Transform.translate(
-              offset: Offset(0, -MediaQuery.textScalerOf(context).scale(0.5)),
-              child: text,
-            )
-          : text,
+      child: text,
     );
   }
 }

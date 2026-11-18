@@ -580,8 +580,8 @@ class CacheSettingsScreen extends StatelessWidget {
         title: Text(audio ? '清理音频缓存？' : '清理浏览缓存？'),
         content: Text(
           audio
-              ? '清理播放时自动保存的本机音频缓存。主动下载的文件会保留，当前播放占用的缓存将在切歌后清理。'
-              : '清理本机保存的浏览内容缓存，后续浏览时重新加载。当前页面已显示的内容会保留，音频文件和播放偏好不受影响。',
+              ? '清理播放时自动保存的音频和歌词。主动下载的文件会保留，包括下载歌词。当前播放占用的缓存将在切歌后清理。'
+              : '清理搜索结果、封面和评论等浏览缓存。当前页面已显示的内容会保留，音频缓存、下载和播放偏好不受影响。',
         ),
         actions: [
           TextButton(
@@ -660,7 +660,8 @@ class CacheSettingsScreen extends StatelessWidget {
                     title: '音频缓存',
                     icon: Icons.music_note_outlined,
                     usage: audioBytes(audio),
-                    description: '播放时自动缓存，按最近使用情况清理',
+                    description:
+                        '播放时自动保存音频和歌词，空间不足时优先清理最久未播放的缓存。主动下载的音频和歌词独立保留。',
                     capacityLabel: '自动缓存上限',
                     limit: media.cacheLimitMb,
                     limits: LocalMediaController.cacheLimitsMb,
@@ -678,7 +679,7 @@ class CacheSettingsScreen extends StatelessWidget {
                     usage: browseBytes == null
                         ? '统计中…'
                         : audioBytes(browseBytes),
-                    description: '保存封面和浏览内容，让页面打开更快',
+                    description: '保存封面、搜索结果和评论等浏览内容，让页面打开更快。',
                     capacityLabel: '浏览缓存容量',
                     limit: controller.browseLimitMb,
                     limits: BrowseCache.limitsMb,
@@ -898,11 +899,7 @@ class _CacheCardState extends State<_CacheCard> {
                 ],
                 icon: const SizedBox(
                   width: 40,
-                  child: Icon(
-                    Icons.expand_more_rounded,
-                    color: lxMuted,
-                    size: 20,
-                  ),
+                  child: Icon(Icons.arrow_drop_down, color: lxMuted, size: 20),
                 ),
                 items: [
                   for (final limit in widget.limits)

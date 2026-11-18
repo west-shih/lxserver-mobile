@@ -97,7 +97,9 @@ class AlbumCard extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 fontSize: 11,
-                                height: 1.4,
+                                height: 1.3,
+                                leadingDistribution:
+                                    TextLeadingDistribution.even,
                                 color: lxMuted,
                               ),
                             ),

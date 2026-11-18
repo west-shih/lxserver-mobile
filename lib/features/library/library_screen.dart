@@ -306,13 +306,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                         child: Row(
                           children: [
                             if (source != null)
-                              Transform.translate(
-                                offset: Offset(
-                                  0,
-                                  MediaQuery.textScalerOf(context).scale(1),
-                                ),
-                                child: EntityBadge(source: source),
-                              )
+                              EntityBadge(source: source)
                             else
                               const Text(
                                 '平台未知',
@@ -328,6 +322,9 @@ class _LibraryScreenState extends State<LibraryScreen>
                                   style: const TextStyle(
                                     fontSize: 12,
                                     color: lxMuted,
+                                    height: 1.3,
+                                    leadingDistribution:
+                                        TextLeadingDistribution.even,
                                   ),
                                 ),
                               ),

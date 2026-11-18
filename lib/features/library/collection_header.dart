@@ -79,6 +79,9 @@ class CollectionHeader extends StatelessWidget {
                                 style: const TextStyle(
                                   fontSize: 12,
                                   color: lxMuted,
+                                  height: 1.3,
+                                  leadingDistribution:
+                                      TextLeadingDistribution.even,
                                 ),
                               ),
                             ),

@@ -87,6 +87,7 @@ class PlayerController extends ChangeNotifier {
     if (!resource.localFile && requestedQuality != _playbackPreference) {
       qualityNotice = '请求音质不可用，已使用${AudioQuality.labelOf(requestedQuality)}';
     }
+    unawaited(loadLyrics());
     if (reportedQuality == null) {
       qualityNotice = '已请求${AudioQuality.labelOf(requestedQuality)}，服务器未确认音质';
     }
@@ -173,7 +174,15 @@ class PlayerController extends ChangeNotifier {
     lyrics = const Lyrics([], '');
     notifyListeners();
     try {
-      final data = await api.lyrics(session, song);
+      final data =
+          await (localMedia?.lyrics(
+                session,
+                song,
+                kind: _resource?.downloadedFile == true
+                    ? LocalLyricsKind.download
+                    : LocalLyricsKind.cache,
+              ) ??
+              api.lyrics(session, song));
       if (version != _lyricVersion) return;
       lyrics = Lyrics.parse(data);
     } on ApiFailure catch (e) {

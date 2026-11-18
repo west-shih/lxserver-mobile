@@ -83,7 +83,12 @@ class SongMetadata extends StatelessWidget {
       song.singer,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      style: const TextStyle(color: lxMuted, fontSize: 12),
+      style: const TextStyle(
+        color: lxMuted,
+        fontSize: 12,
+        height: 1.3,
+        leadingDistribution: TextLeadingDistribution.even,
+      ),
     );
     return LayoutBuilder(
       builder: (context, constraints) {

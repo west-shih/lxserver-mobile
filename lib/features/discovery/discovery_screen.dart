@@ -402,6 +402,9 @@ class _DiscoveryScreenState extends State<DiscoveryScreen>
                                     style: const TextStyle(
                                       color: lxMuted,
                                       fontSize: 11,
+                                      height: 1.3,
+                                      leadingDistribution:
+                                          TextLeadingDistribution.even,
                                     ),
                                   ),
                                 ),
@@ -419,6 +422,9 @@ class _DiscoveryScreenState extends State<DiscoveryScreen>
                                       style: const TextStyle(
                                         color: lxMuted,
                                         fontSize: 11,
+                                        height: 1.3,
+                                        leadingDistribution:
+                                            TextLeadingDistribution.even,
                                       ),
                                     ),
                                   ),

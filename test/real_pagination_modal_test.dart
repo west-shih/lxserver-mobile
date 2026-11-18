@@ -8,8 +8,10 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:lxserver_mobile/app/app.dart';
 import 'package:lxserver_mobile/app/controller.dart';
+import 'package:lxserver_mobile/app/theme.dart';
 import 'package:lxserver_mobile/core/lx_api.dart';
 import 'package:lxserver_mobile/core/page_window.dart';
+import 'package:lxserver_mobile/features/discovery/shared_playlist_sheet.dart';
 import 'package:lxserver_mobile/features/player/player_views.dart';
 import 'package:lxserver_mobile/features/library/collection_screen.dart';
 import 'package:lxserver_mobile/features/library/library_controller.dart';
@@ -34,6 +36,42 @@ Map<String, dynamic> song(int i) => {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => FlutterSecureStorage.setMockInitialValues({}));
+
+  testWidgets('Shared playlist sheet uses the modal input typography', (
+    tester,
+  ) async {
+    final app = AppController()..session = session;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => showSharedPlaylist(context, app),
+              child: const Text('打开'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('打开'));
+    await tester.pumpAndSettle();
+    expect(find.text('歌单来源'), findsOneWidget);
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.style, modalInputTextStyle);
+    final dropdown = tester.widget<DropdownButton<MusicSource>>(
+      find.byType(DropdownButton<MusicSource>),
+    );
+    expect(dropdown.style, modalInputTextStyle);
+    final hint = tester.widget<Text>(find.text('输入歌单链接或歌单 ID'));
+    expect(hint.style?.fontSize, 14);
+    expect(hint.style?.color, lxMuted);
+    final instructions = tester.widget<Text>(
+      find.textContaining('请选择与链接一致的来源'),
+    );
+    expect(instructions.style, modalSupportingTextStyle);
+    await tester.pumpWidget(const SizedBox());
+    app.dispose();
+  });
 
   testWidgets(
     'Footer input jumps directly to a reported search page without reading preceding pages',

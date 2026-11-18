@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../../shared/app_modal.dart';
-
 import '../../app/controller.dart';
 import '../../app/theme.dart';
+import '../../core/artwork_image.dart';
 import '../../core/lx_api.dart';
+import '../../shared/app_modal.dart';
+import '../../shared/result_pagination.dart';
+import '../../shared/song_art.dart';
 import 'comments_controller.dart';
 
 void showComments(BuildContext context, AppController app, Song song) {
@@ -31,7 +33,27 @@ class _CommentsSheetState extends State<_CommentsSheet> {
     widget.app.session!,
     widget.song,
     widget.app.expire,
+    pageSize: widget.app.collectionPageSize,
   );
+  bool get _paged => widget.app.pagedCollections;
+  bool get _hasMore => c.page < c.maxPage;
+
+  void _loadNext() {
+    if (!c.loading && _hasMore) {
+      c.load(targetPage: c.page + 1, append: !_paged);
+    }
+  }
+
+  Future<void> _refresh() => c.api.refreshBrowse(() => c.load(targetPage: 1));
+
+  void _retryWithItems() {
+    if (c.appendFailed) {
+      _loadNext();
+    } else {
+      _refresh();
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -45,123 +67,164 @@ class _CommentsSheetState extends State<_CommentsSheet> {
   }
 
   @override
-  Widget build(BuildContext context) => SafeArea(
-    child: SizedBox(
-      height: MediaQuery.sizeOf(context).height * .78,
-      child: ListenableBuilder(
-        listenable: c,
-        builder: (context, _) => Column(
-          children: [
-            SheetHeader(
-              title: '歌曲评论',
-              subtitle: '${widget.song.name} · ${widget.song.sourceLabel}',
-              trailing: Tooltip(
-                message: '关闭评论',
-                child: TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('关闭'),
+  Widget build(BuildContext context) => ConstrainedBox(
+    constraints: BoxConstraints(
+      maxHeight: MediaQuery.sizeOf(context).height * .78,
+    ),
+    child: ListenableBuilder(
+      listenable: c,
+      builder: (context, _) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SheetHeader(
+            title: '歌曲评论',
+            subtitle: '${widget.song.name} · ${widget.song.sourceLabel}',
+            trailing: Tooltip(
+              message: '关闭评论',
+              child: TextButton(
+                style: TextButton.styleFrom(
+                  minimumSize: const Size(48, 32),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
+                onPressed: () => Navigator.pop(context),
+                child: const Text('关闭'),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                children: [
-                  for (final type in ['hot', 'new'])
-                    Padding(
-                      padding: const EdgeInsets.only(right: 10),
-                      child: ChoiceChip(
-                        label: Text(type == 'hot' ? '最热评论' : '最新评论'),
-                        selected: c.type == type,
-                        showCheckmark: false,
-                        onSelected: (_) => c.load(category: type),
-                      ),
-                    ),
-                  const Spacer(),
-                  Text(
-                    '${c.total}',
+            subtitleTrailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Flexible(
+                  child: Text(
+                    '${c.total} 条',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(color: lxMuted, fontSize: 12),
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 8),
+                DropdownButton<String>(
+                  borderRadius: BorderRadius.circular(12),
+                  dropdownColor: Colors.white,
+                  isDense: true,
+                  value: c.type,
+                  underline: const SizedBox(),
+                  style: const TextStyle(color: lxInk, fontSize: 13),
+                  items: const [
+                    DropdownMenuItem(value: 'hot', child: Text('最热评论')),
+                    DropdownMenuItem(value: 'new', child: Text('最新评论')),
+                  ],
+                  onChanged: (type) {
+                    if (type != null && type != c.type) c.load(category: type);
+                  },
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: c.loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : c.error != null
-                  ? Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(c.error!),
-                          TextButton(
-                            onPressed: c.load,
-                            child: const Text('重试'),
-                          ),
-                        ],
-                      ),
-                    )
-                  : RefreshIndicator(
-                      onRefresh: () =>
-                          c.api.refreshBrowse(() => c.load(targetPage: 1)),
+          ),
+          Flexible(
+            child: c.loading && c.items.isEmpty
+                ? const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(
+                      heightFactor: 1,
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                : c.error != null && c.items.isEmpty
+                ? Center(
+                    heightFactor: 1,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(c.error!),
+                        TextButton(onPressed: c.load, child: const Text('重试')),
+                      ],
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: _refresh,
+                    child: NotificationListener<ScrollUpdateNotification>(
+                      onNotification: (notification) {
+                        if (!_paged &&
+                            c.error == null &&
+                            (notification.scrollDelta ?? 0) > 0 &&
+                            notification.metrics.extentAfter < 240) {
+                          _loadNext();
+                        }
+                        return false;
+                      },
                       child: ListView.separated(
+                        key: ValueKey((c.type, _paged ? c.page : 1)),
+                        shrinkWrap: true,
                         physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.all(20),
-                        itemCount: c.items.isEmpty ? 1 : c.items.length,
+                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                        itemCount: c.items.isEmpty
+                            ? 1
+                            : c.items.length +
+                                  ((!_paged && (_hasMore || c.loading)) ||
+                                          c.error != null
+                                      ? 1
+                                      : 0),
                         separatorBuilder: (_, _) =>
                             const Divider(height: 32, color: Color(0xFFE5EDE8)),
-                        itemBuilder: (_, i) => c.items.isEmpty
-                            ? const Padding(
-                                padding: EdgeInsets.all(24),
-                                child: Center(
-                                  child: Text(
-                                    '暂无评论',
-                                    style: TextStyle(color: lxMuted),
-                                  ),
+                        itemBuilder: (_, i) {
+                          if (c.items.isEmpty) {
+                            return const Padding(
+                              padding: EdgeInsets.all(24),
+                              child: Center(child: Text('暂无评论')),
+                            );
+                          }
+                          if (i < c.items.length) return _Comment(c.items[i]);
+                          if (c.loading) {
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
+                          }
+                          if (c.error != null) {
+                            return Column(
+                              children: [
+                                Text(c.error!),
+                                TextButton(
+                                  onPressed: _retryWithItems,
+                                  child: const Text('重试'),
                                 ),
-                              )
-                            : _Comment(c.items[i]),
+                              ],
+                            );
+                          }
+                          return TextButton(
+                            onPressed: _loadNext,
+                            child: const Text('加载更多'),
+                          );
+                        },
                       ),
                     ),
+                  ),
+          ),
+          if (_paged)
+            ResultPagination(
+              page: c.page - 1,
+              pageCount: c.sequentialOnly ? null : c.maxPage,
+              loadedPageCount: c.loadedPageCount,
+              hasMore: _hasMore,
+              onPrevious: !c.loading && c.page > 1
+                  ? () => c.load(targetPage: c.page - 1)
+                  : null,
+              onNext: c.loading || c.error != null || !_hasMore
+                  ? null
+                  : _loadNext,
+              onJump: c.loading ? null : (page) => c.load(targetPage: page + 1),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconButton(
-                    tooltip: '上一页评论',
-                    onPressed: !c.loading && c.page > 1
-                        ? () => c.load(targetPage: c.page - 1)
-                        : null,
-                    icon: const Icon(Icons.chevron_left_rounded),
-                  ),
-                  Text(
-                    '${c.page} / ${c.maxPage}',
-                    style: const TextStyle(color: lxMuted, fontSize: 12),
-                  ),
-                  IconButton(
-                    tooltip: '下一页评论',
-                    onPressed:
-                        !c.loading && c.error == null && c.page < c.maxPage
-                        ? () => c.load(targetPage: c.page + 1)
-                        : null,
-                    icon: const Icon(Icons.chevron_right_rounded),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
     ),
   );
 }
 
 class _Comment extends StatelessWidget {
-  const _Comment(this.data);
-  final Map<String, dynamic> data;
+  const _Comment(this.data, {this.isReply = false});
+  final Map<dynamic, dynamic> data;
+  final bool isReply;
   @override
   Widget build(BuildContext context) {
     final name = '${data['userName'] ?? '听友'}';
@@ -172,14 +235,22 @@ class _Comment extends StatelessWidget {
       children: [
         Row(
           children: [
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: const Color(0xFFE0F3E9),
-              child: Text(
-                name.isEmpty ? '♪' : name.characters.first,
-                style: const TextStyle(color: lxGreen, fontSize: 13),
+            if (_commentImageUrl(data['avatar']) case final url?)
+              SongArt(
+                url: url,
+                size: 32,
+                borderRadius: 16,
+                placeholderIcon: Icons.person_outline,
+              )
+            else
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: const Color(0xFFE0F3E9),
+                child: Text(
+                  name.isEmpty ? '♪' : name.characters.first,
+                  style: const TextStyle(color: lxGreen, fontSize: 13),
+                ),
               ),
-            ),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -198,8 +269,17 @@ class _Comment extends StatelessWidget {
         const SizedBox(height: 12),
         Text(
           '${data['text'] ?? ''}',
-          style: const TextStyle(height: 1.65, fontSize: 14),
+          style: TextStyle(height: 1.65, fontSize: isReply ? 12 : 14),
         ),
+        if (data['images'] case final List images)
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final image in images)
+                if (_commentImageUrl(image) case final url?) _CommentImage(url),
+            ],
+          ),
         if (data['timeStr'] != null)
           Padding(
             padding: const EdgeInsets.only(top: 8),
@@ -221,16 +301,75 @@ class _Comment extends StatelessWidget {
               children: [
                 for (final reply in replies)
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 3),
-                    child: Text(
-                      '${reply['userName'] ?? '听友'}：${reply['text'] ?? ''}',
-                      style: const TextStyle(fontSize: 12, height: 1.6),
-                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: _Comment(reply, isReply: true),
                   ),
               ],
             ),
           ),
       ],
+    );
+  }
+}
+
+String? _commentImageUrl(Object? value) {
+  if (value is! String) return null;
+  final text = value.trim();
+  final url = text.startsWith('//') ? 'https:$text' : text;
+  final uri = Uri.tryParse(url);
+  return uri != null &&
+          (uri.scheme == 'https' || uri.scheme == 'http') &&
+          uri.host.isNotEmpty &&
+          uri.userInfo.isEmpty
+      ? url
+      : null;
+}
+
+class _CommentImage extends StatelessWidget {
+  const _CommentImage(this.url);
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    final image = ArtworkImage(url, headers: artworkHeaders(url));
+    final pixels = (144 * MediaQuery.devicePixelRatioOf(context)).ceil();
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Image(
+        image: ResizeImage(image, width: pixels),
+        width: 144,
+        height: 108,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+        frameBuilder: (context, child, frame, _) {
+          if (frame == null) return child;
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Material(
+              child: InkWell(
+                onTap: () => showDialog<void>(
+                  context: context,
+                  builder: (context) => Dialog(
+                    clipBehavior: Clip.antiAlias,
+                    child: Stack(
+                      alignment: Alignment.topRight,
+                      children: [
+                        InteractiveViewer(child: Image(image: image)),
+                        IconButton(
+                          tooltip: '关闭图片',
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                child: child,
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }
