@@ -1,6 +1,8 @@
 import '../../core/lx_api.dart';
 import 'playback_cache.dart';
 
+const qualitySizeNote = '标注大小仅供参考，以实际文件为准。';
+
 class AudioQuality {
   const AudioQuality(this.id, this.label, this.detail);
   final String id;
@@ -24,6 +26,55 @@ class AudioQuality {
 }
 
 class QualityPolicy {
+  static String? optionDetail(AudioQuality quality, Song? song) {
+    if (!const [
+      '128k',
+      '192k',
+      '320k',
+      'flac',
+      'flac24bit',
+    ].contains(quality.id)) {
+      return null;
+    }
+    final size = song == null ? null : advertisedSize(song, quality.id);
+    return size == null ? quality.detail : '${quality.detail} · $size';
+  }
+
+  static final _sizePattern = RegExp(
+    r'^([0-9]+(?:\.[0-9]+)?)\s+(B|KB|MB|GB|TB)$',
+  );
+
+  static String? advertisedSize(Song song, String quality) {
+    final meta = song.raw['meta'] is Map ? song.raw['meta'] as Map : {};
+    for (final data in [
+      song.raw['_types'],
+      song.raw['_qualitys'],
+      meta['_types'],
+      meta['_qualitys'],
+      song.raw['types'],
+      song.raw['qualitys'],
+      meta['types'],
+      meta['qualitys'],
+    ]) {
+      final entry = data is Map
+          ? data[quality]
+          : data is List
+          ? data
+                .whereType<Map>()
+                .where((item) => item['type'] == quality)
+                .firstOrNull
+          : null;
+      if (entry is! Map || entry['isPlatformQuality'] == true) continue;
+      final size = entry['size'];
+      if (size is! String) continue;
+      final match = _sizePattern.firstMatch(size.trim());
+      if (match != null && double.parse(match[1]!) > 0) {
+        return '${match[1]} ${match[2]}';
+      }
+    }
+    return null;
+  }
+
   static List<AudioQuality> knownOptions(
     Song song, {
     Iterable<String> verified = const [],
@@ -70,18 +121,31 @@ class QualityPolicy {
     ].any(synthetic);
   }
 
-  /// Mirrors upstream app.js getQualityTags: only concrete song metadata.
-  static String? badge(Song song, {Iterable<String> verified = const []}) {
+  static String? badge(Song song, {Iterable<String> verified = const []}) =>
+      badgeInfo(song, verified: verified)?.label;
+
+  /// Mirrors upstream app.js getQualityTags while retaining the exact tier.
+  static ({String id, String label})? badgeInfo(
+    Song song, {
+    Iterable<String> verified = const [],
+  }) {
     final ids = advertised(song)..addAll(verified);
     final explicit = song.raw['quality'] ?? song.raw['type'];
     if (explicit is String && AudioQuality.find(explicit) != null) {
       ids.add(explicit);
     }
-    if (ids.contains('master')) return 'Master';
-    if (ids.contains('atmos') || ids.contains('atmos_plus')) return 'Atmos';
-    if (ids.contains('hires') || ids.contains('flac24bit')) return 'Hi-Res';
-    if (ids.contains('flac')) return '无损';
-    if (ids.contains('320k')) return '高品质';
+    for (final id in priority) {
+      if (!ids.contains(id)) continue;
+      final label = switch (id) {
+        'master' => 'Master',
+        'atmos' || 'atmos_plus' => 'Atmos',
+        'hires' || 'flac24bit' => 'Hi-Res',
+        'flac' => '无损',
+        '320k' => '高品质',
+        _ => null,
+      };
+      if (label != null) return (id: id, label: label);
+    }
     return null;
   }
 
@@ -433,5 +497,5 @@ Future<PlaybackResource?> loadWithQualityFallback({
     if (resolutions >= maxResolutions) break;
   }
   if (failure is ApiFailure) throw failure;
-  throw const ApiFailure('暂无可播放音质，可重新尝试首选音质');
+  throw const ApiFailure('暂无可播放音质');
 }

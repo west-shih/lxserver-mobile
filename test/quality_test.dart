@@ -138,7 +138,7 @@ void main() {
       'name': '歌曲名称' * 10,
       'singer': '很长的歌手名称' * 20,
       'types': [
-        {'type': 'flac'},
+        {'type': 'flac', 'size': '28.00 MB'},
       ],
     }, MusicSource.tx);
     await tester.pumpWidget(
@@ -150,6 +150,9 @@ void main() {
     );
     expect(find.text('QQ').hitTestable(), findsOneWidget);
     expect(find.text('无损').hitTestable(), findsOneWidget);
+    await tester.longPress(find.text('无损'));
+    await tester.pumpAndSettle();
+    expect(find.text('FLAC · 28.00 MB'), findsOneWidget);
     expect(
       tester.getTopLeft(find.text('QQ')).dx,
       lessThan(tester.getTopLeft(find.text(song.singer)).dx),
@@ -351,7 +354,14 @@ void main() {
       final c = AppController();
       c.player.enqueue(
         Session(Uri.parse('https://example.test'), 'test', 'fixture-token'),
-        Song({'name': 'Test', 'singer': 'Artist'}, MusicSource.kw),
+        Song({
+          'name': 'Test',
+          'singer': 'Artist',
+          '_types': {
+            '128k': {'size': '4.25 MB'},
+            'flac': {'size': '0 B'},
+          },
+        }, MusicSource.kw),
       );
       c.player.index = 0;
       c.player.lyrics = Lyrics.parse({
@@ -365,8 +375,18 @@ void main() {
         ),
       );
       final pager = find.byKey(const ValueKey('player-pages'));
+      final queueIcon = find.byIcon(Icons.queue_music_rounded);
+      void expectTabsCentered() {
+        final queueCenter = tester.getCenter(queueIcon).dy;
+        for (final tab in ['封面', '歌词']) {
+          expect(tester.getCenter(find.text(tab)).dy, closeTo(queueCenter, .1));
+        }
+      }
+
+      expectTabsCentered();
       await tester.drag(pager, const Offset(-330, 0));
       await tester.pumpAndSettle();
+      expectTabsCentered();
       expect(find.text('Line one'), findsOneWidget);
       expect(find.byType(Slider), findsOneWidget);
       await tester.drag(pager, const Offset(330, 0));
@@ -383,6 +403,10 @@ void main() {
       await tester.tap(find.text('音质选择'));
       await tester.pumpAndSettle();
       expect(find.text('音质'), findsOneWidget);
+      expect(find.text('128 kbps · 4.25 MB'), findsOneWidget);
+      expect(find.text('标注大小仅供参考，以实际文件为准。'), findsOneWidget);
+      expect(find.text('重新尝试首选音质'), findsNothing);
+      expect(find.text('FLAC'), findsOneWidget);
       expect(find.text('Hi-Res'), findsNothing);
       await tester.tap(
         find.byKey(const ValueKey('unverified-quality-options')),

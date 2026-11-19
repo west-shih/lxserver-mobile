@@ -24,7 +24,11 @@ void showQuality(BuildContext context, PlayerController player) {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SheetHeader(title: '音质', closeLabel: '关闭'),
+                const SheetHeader(
+                  title: '音质',
+                  subtitle: qualitySizeNote,
+                  closeLabel: '关闭',
+                ),
                 if (player.changingQuality || player.resolving)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
@@ -43,11 +47,12 @@ void showQuality(BuildContext context, PlayerController player) {
                       ],
                     ),
                   )
-                else if (player.qualityNotice != null || player.error != null)
+                else if ((player.qualityNotice ?? player.error)
+                    case final message?)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
                     child: Text(
-                      player.qualityNotice ?? player.error!,
+                      message,
                       style: TextStyle(
                         fontSize: 13,
                         height: 1.5,
@@ -65,13 +70,6 @@ void showQuality(BuildContext context, PlayerController player) {
               shrinkWrap: true,
               padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
               children: [
-                ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.refresh_rounded, size: 20),
-                  title: const Text('重新尝试首选音质', style: TextStyle(fontSize: 14)),
-                  enabled: !player.resolving && !player.changingQuality,
-                  onTap: player.retryPreferredQuality,
-                ),
                 if (player.knownQualityOptions.isEmpty)
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -110,28 +108,28 @@ void showQuality(BuildContext context, PlayerController player) {
   );
 }
 
-Widget _qualityTile(PlayerController player, AudioQuality quality) => ListTile(
-  dense: true,
-  selected: player.reportedQuality == quality.id,
-  title: Text(
-    quality.label,
-    style: TextStyle(
-      fontSize: 15,
-      fontWeight: FontWeight.w600,
-      color: player.reportedQuality == quality.id ? lxGreen : lxInk,
+Widget _qualityTile(PlayerController player, AudioQuality quality) {
+  final detail = QualityPolicy.optionDetail(quality, player.current);
+  return ListTile(
+    dense: true,
+    selected: player.reportedQuality == quality.id,
+    title: Text(
+      quality.label,
+      style: TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.w600,
+        color: player.reportedQuality == quality.id ? lxGreen : lxInk,
+      ),
     ),
-  ),
-  subtitle: ['128k', '192k', '320k', 'flac', 'flac24bit'].contains(quality.id)
-      ? Text(
-          quality.detail,
-          style: const TextStyle(fontSize: 11, color: lxMuted),
-        )
-      : null,
-  trailing: player.reportedQuality == quality.id
-      ? const Icon(Icons.check_rounded, color: lxGreen, size: 20)
-      : player.preferredQuality == quality.id
-      ? const Text('首选', style: TextStyle(color: lxMuted, fontSize: 11))
-      : null,
-  enabled: !player.resolving && !player.changingQuality,
-  onTap: () => player.changeQuality(quality.id),
-);
+    subtitle: detail != null
+        ? Text(detail, style: const TextStyle(fontSize: 11, color: lxMuted))
+        : null,
+    trailing: player.reportedQuality == quality.id
+        ? const Icon(Icons.check_rounded, color: lxGreen, size: 20)
+        : player.preferredQuality == quality.id
+        ? const Text('首选', style: TextStyle(color: lxMuted, fontSize: 11))
+        : null,
+    enabled: !player.resolving && !player.changingQuality,
+    onTap: () => player.changeQuality(quality.id),
+  );
+}

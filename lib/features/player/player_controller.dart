@@ -461,9 +461,6 @@ class PlayerController extends ChangeNotifier {
       } else {
         await audio.pause();
       }
-      if (reportedQuality != null && qualityNotice == null) {
-        qualityNotice = '已切换为$qualityLabel';
-      }
     } catch (e) {
       if (generation != _generation) return;
       _playbackPreference = previousPreference;

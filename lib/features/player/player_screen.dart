@@ -66,7 +66,7 @@ class _SongInfo extends StatelessWidget {
                       controller: app!,
                       song: song,
                       showSinger: false,
-                      qualityOverride: player.qualityLabel,
+                      showCurrentQuality: true,
                     ),
                   ),
                 ],
@@ -147,8 +147,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     foregroundColor: _page == i ? lxInk : lxMuted,
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                   ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    clipBehavior: Clip.none,
                     children: [
                       Text(
                         i == 0 ? '封面' : '歌词',
@@ -159,14 +160,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
                               : FontWeight.w400,
                         ),
                       ),
-                      const SizedBox(height: 5),
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        width: _page == i ? 16 : 4,
-                        height: 3,
-                        decoration: BoxDecoration(
-                          color: _page == i ? lxGreen : Colors.transparent,
-                          borderRadius: BorderRadius.circular(3),
+                      Positioned(
+                        bottom: -8,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          width: _page == i ? 16 : 4,
+                          height: 3,
+                          decoration: BoxDecoration(
+                            color: _page == i ? lxGreen : Colors.transparent,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
                         ),
                       ),
                     ],

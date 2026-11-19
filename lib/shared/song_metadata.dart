@@ -13,12 +13,12 @@ class SongMetadata extends StatelessWidget {
     required this.controller,
     required this.song,
     this.showSinger = true,
-    this.qualityOverride,
+    this.showCurrentQuality = false,
   });
   final AppController controller;
   final Song song;
   final bool showSinger;
-  final String? qualityOverride;
+  final bool showCurrentQuality;
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: controller.player,
@@ -32,10 +32,19 @@ class SongMetadata extends StatelessWidget {
     final remembered = session == null
         ? null
         : AudioQuality.find(controller.player.rememberedQuality(session, song));
-    final quality =
-        qualityOverride ??
-        (remembered?.id == 'master' ? 'Master' : remembered?.label) ??
-        QualityPolicy.badge(song, verified: [...folders.keys, ...local.keys]);
+    final advertised = remembered == null && !showCurrentQuality
+        ? QualityPolicy.badgeInfo(
+            song,
+            verified: [...folders.keys, ...local.keys],
+          )
+        : null;
+    final option = showCurrentQuality
+        ? AudioQuality.find(controller.player.reportedQuality)
+        : remembered ?? AudioQuality.find(advertised?.id);
+    final quality = showCurrentQuality
+        ? controller.player.qualityLabel
+        : (remembered?.id == 'master' ? 'Master' : remembered?.label) ??
+              advertised?.label;
     final cached = controller.localMedia.badge(song);
     final badges = <Widget>[
       MusicBadge(
@@ -44,11 +53,9 @@ class SongMetadata extends StatelessWidget {
       ),
       if (quality != null)
         Tooltip(
-          message: qualityOverride == null
-              ? remembered != null
-                    ? '本机记住的歌曲音质，实际播放以解析结果为准'
-                    : '歌曲标注音质，实际播放以解析结果为准'
-              : '当前播放音质，以服务器标注为准',
+          message: option == null
+              ? quality
+              : QualityPolicy.optionDetail(option, song) ?? option.detail,
           child: MusicBadge(quality, tone: MusicBadge.quality(quality)),
         ),
       if (cached != null)

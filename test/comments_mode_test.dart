@@ -90,6 +90,10 @@ void main() {
     final item = Song({
       'songmid': 'not-playing',
       'name': 'Fixture',
+      '_types': {
+        '128k': {'size': '4.25 MB'},
+        'flac': {'size': '0 B'},
+      },
     }, MusicSource.kw);
     await tester.pumpWidget(
       MaterialApp(
@@ -109,6 +113,15 @@ void main() {
     await tester.tap(find.text('下载到手机'));
     await tester.pumpAndSettle();
     expect(find.text('下载音质'), findsOneWidget);
+    expect(find.text('128 kbps · 4.25 MB'), findsOneWidget);
+    expect(find.text('标注大小仅供参考，以实际文件为准。'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('download-quality-flac')),
+        matching: find.text('FLAC'),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('下载'), findsOneWidget);
     expect(find.textContaining('按首选'), findsNothing);
     await tester.ensureVisible(

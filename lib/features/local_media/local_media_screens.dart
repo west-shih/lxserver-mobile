@@ -36,19 +36,24 @@ void showDownloadQuality(BuildContext context, AppController c, Song song) {
     context: context,
     builder: (sheet) => StatefulBuilder(
       builder: (sheet, update) {
-        Widget option(AudioQuality q) => ListTile(
-          key: ValueKey('download-quality-${q.id}'),
-          selected: selected == q.id,
-          title: Text(q.label),
-          trailing: selected == q.id
-              ? const Icon(Icons.check_rounded, color: lxGreen)
-              : null,
-          onTap: () => update(() => selected = q.id),
-        );
+        Widget option(AudioQuality q) {
+          final detail = QualityPolicy.optionDetail(q, song);
+          return ListTile(
+            key: ValueKey('download-quality-${q.id}'),
+            selected: selected == q.id,
+            title: Text(q.label),
+            subtitle: detail == null ? null : Text(detail),
+            trailing: selected == q.id
+                ? const Icon(Icons.check_rounded, color: lxGreen)
+                : null,
+            onTap: () => update(() => selected = q.id),
+          );
+        }
+
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SheetHeader(title: '下载音质'),
+            const SheetHeader(title: '下载音质', subtitle: qualitySizeNote),
             Flexible(
               child: ListView(
                 shrinkWrap: true,
@@ -336,7 +341,12 @@ class DownloadsScreen extends StatelessWidget {
                                   else
                                     const Text('文件需重新下载'),
                                   Text(
-                                    audioBytes(file.bytes),
+                                    file.valid &&
+                                            file.ext.startsWith('.') &&
+                                            file.ext.length > 1 &&
+                                            file.ext != '.audio'
+                                        ? '${audioBytes(file.bytes)} · ${file.ext.substring(1).toUpperCase()}'
+                                        : audioBytes(file.bytes),
                                     style: const TextStyle(
                                       fontSize: 12,
                                       color: lxMuted,
