@@ -15,6 +15,7 @@ void showComments(BuildContext context, AppController app, Song song) {
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
+    keepMinimumHeight: true,
     builder: (_) => _CommentsSheet(app: app, song: song),
   );
 }
@@ -67,156 +68,168 @@ class _CommentsSheetState extends State<_CommentsSheet> {
   }
 
   @override
-  Widget build(BuildContext context) => ConstrainedBox(
-    constraints: BoxConstraints(
-      maxHeight: MediaQuery.sizeOf(context).height * .78,
-    ),
-    child: ListenableBuilder(
-      listenable: c,
-      builder: (context, _) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SheetHeader(
-            title: '歌曲评论',
-            subtitle: '${widget.song.name} · ${widget.song.sourceLabel}',
-            trailing: Tooltip(
-              message: '关闭评论',
-              child: TextButton(
-                style: TextButton.styleFrom(
-                  minimumSize: const Size(48, 32),
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                onPressed: () => Navigator.pop(context),
-                child: const Text('关闭'),
-              ),
-            ),
-            subtitleTrailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Flexible(
-                  child: Text(
-                    '${c.total} 条',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: lxMuted, fontSize: 12),
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: c,
+    builder: (context, _) => Column(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Flexible(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SheetHeader(
+                title: '歌曲评论',
+                subtitle: '${widget.song.name} · ${widget.song.sourceLabel}',
+                trailing: Tooltip(
+                  message: '关闭评论',
+                  child: TextButton(
+                    style: TextButton.styleFrom(
+                      minimumSize: const Size(48, 32),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('关闭'),
                   ),
                 ),
-                const SizedBox(width: 8),
-                DropdownButton<String>(
-                  borderRadius: BorderRadius.circular(12),
-                  dropdownColor: Colors.white,
-                  isDense: true,
-                  value: c.type,
-                  underline: const SizedBox(),
-                  style: const TextStyle(color: lxInk, fontSize: 13),
-                  items: const [
-                    DropdownMenuItem(value: 'hot', child: Text('最热评论')),
-                    DropdownMenuItem(value: 'new', child: Text('最新评论')),
-                  ],
-                  onChanged: (type) {
-                    if (type != null && type != c.type) c.load(category: type);
-                  },
-                ),
-              ],
-            ),
-          ),
-          Flexible(
-            child: c.loading && c.items.isEmpty
-                ? const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(
-                      heightFactor: 1,
-                      child: CircularProgressIndicator(),
-                    ),
-                  )
-                : c.error != null && c.items.isEmpty
-                ? Center(
-                    heightFactor: 1,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(c.error!),
-                        TextButton(onPressed: c.load, child: const Text('重试')),
-                      ],
-                    ),
-                  )
-                : RefreshIndicator(
-                    onRefresh: _refresh,
-                    child: NotificationListener<ScrollUpdateNotification>(
-                      onNotification: (notification) {
-                        if (!_paged &&
-                            c.error == null &&
-                            (notification.scrollDelta ?? 0) > 0 &&
-                            notification.metrics.extentAfter < 240) {
-                          _loadNext();
-                        }
-                        return false;
-                      },
-                      child: ListView.separated(
-                        key: ValueKey((c.type, _paged ? c.page : 1)),
-                        shrinkWrap: true,
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-                        itemCount: c.items.isEmpty
-                            ? 1
-                            : c.items.length +
-                                  ((!_paged && (_hasMore || c.loading)) ||
-                                          c.error != null
-                                      ? 1
-                                      : 0),
-                        separatorBuilder: (_, _) =>
-                            const Divider(height: 32, color: Color(0xFFE5EDE8)),
-                        itemBuilder: (_, i) {
-                          if (c.items.isEmpty) {
-                            return const Padding(
-                              padding: EdgeInsets.all(24),
-                              child: Center(child: Text('暂无评论')),
-                            );
-                          }
-                          if (i < c.items.length) return _Comment(c.items[i]);
-                          if (c.loading) {
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          }
-                          if (c.error != null) {
-                            return Column(
-                              children: [
-                                Text(c.error!),
-                                TextButton(
-                                  onPressed: _retryWithItems,
-                                  child: const Text('重试'),
-                                ),
-                              ],
-                            );
-                          }
-                          return TextButton(
-                            onPressed: _loadNext,
-                            child: const Text('加载更多'),
-                          );
-                        },
+                subtitleTrailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        '${c.total} 条',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: lxMuted, fontSize: 12),
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    DropdownButton<String>(
+                      borderRadius: BorderRadius.circular(12),
+                      dropdownColor: Colors.white,
+                      isDense: true,
+                      value: c.type,
+                      underline: const SizedBox(),
+                      style: const TextStyle(color: lxInk, fontSize: 13),
+                      items: const [
+                        DropdownMenuItem(value: 'hot', child: Text('最热评论')),
+                        DropdownMenuItem(value: 'new', child: Text('最新评论')),
+                      ],
+                      onChanged: (type) {
+                        if (type != null && type != c.type) {
+                          c.load(category: type);
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              Flexible(
+                child: c.loading && c.items.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Center(
+                          heightFactor: 1,
+                          child: CircularProgressIndicator(),
+                        ),
+                      )
+                    : c.error != null && c.items.isEmpty
+                    ? Center(
+                        heightFactor: 1,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(c.error!),
+                            TextButton(
+                              onPressed: c.load,
+                              child: const Text('重试'),
+                            ),
+                          ],
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: _refresh,
+                        child: NotificationListener<ScrollUpdateNotification>(
+                          onNotification: (notification) {
+                            if (!_paged &&
+                                c.error == null &&
+                                (notification.scrollDelta ?? 0) > 0 &&
+                                notification.metrics.extentAfter < 240) {
+                              _loadNext();
+                            }
+                            return false;
+                          },
+                          child: ListView.separated(
+                            key: ValueKey((c.type, _paged ? c.page : 1)),
+                            shrinkWrap: true,
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                            itemCount: c.items.isEmpty
+                                ? 1
+                                : c.items.length +
+                                      ((!_paged && (_hasMore || c.loading)) ||
+                                              c.error != null
+                                          ? 1
+                                          : 0),
+                            separatorBuilder: (_, _) => const Divider(
+                              height: 32,
+                              color: Color(0xFFE5EDE8),
+                            ),
+                            itemBuilder: (_, i) {
+                              if (c.items.isEmpty) {
+                                return const Padding(
+                                  padding: EdgeInsets.all(24),
+                                  child: Center(child: Text('暂无评论')),
+                                );
+                              }
+                              if (i < c.items.length) {
+                                return _Comment(c.items[i]);
+                              }
+                              if (c.loading) {
+                                return const Center(
+                                  child: CircularProgressIndicator(),
+                                );
+                              }
+                              if (c.error != null) {
+                                return Column(
+                                  children: [
+                                    Text(c.error!),
+                                    TextButton(
+                                      onPressed: _retryWithItems,
+                                      child: const Text('重试'),
+                                    ),
+                                  ],
+                                );
+                              }
+                              return TextButton(
+                                onPressed: _loadNext,
+                                child: const Text('加载更多'),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+              ),
+            ],
           ),
-          if (_paged)
-            ResultPagination(
-              page: c.page - 1,
-              pageCount: c.sequentialOnly ? null : c.maxPage,
-              loadedPageCount: c.loadedPageCount,
-              hasMore: _hasMore,
-              onPrevious: !c.loading && c.page > 1
-                  ? () => c.load(targetPage: c.page - 1)
-                  : null,
-              onNext: c.loading || c.error != null || !_hasMore
-                  ? null
-                  : _loadNext,
-              onJump: c.loading ? null : (page) => c.load(targetPage: page + 1),
-            ),
-        ],
-      ),
+        ),
+        if (_paged)
+          ResultPagination(
+            page: c.page - 1,
+            pageCount: c.sequentialOnly ? null : c.maxPage,
+            loadedPageCount: c.loadedPageCount,
+            hasMore: _hasMore,
+            onPrevious: !c.loading && c.page > 1
+                ? () => c.load(targetPage: c.page - 1)
+                : null,
+            onNext: c.loading || c.error != null || !_hasMore
+                ? null
+                : _loadNext,
+            onJump: c.loading ? null : (page) => c.load(targetPage: page + 1),
+          ),
+      ],
     ),
   );
 }

@@ -45,48 +45,43 @@ void showDownloadQuality(BuildContext context, AppController c, Song song) {
               : null,
           onTap: () => update(() => selected = q.id),
         );
-        return SizedBox(
-          height: modalPanelHeight(
-            sheet,
-            124 + (known.length + (unknown.isEmpty ? 0 : 1)) * 60.0,
-            minHeight: 220,
-          ),
-          child: Column(
-            children: [
-              const SheetHeader(title: '下载音质'),
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  children: [
-                    for (final q in known) option(q),
-                    if (unknown.isNotEmpty)
-                      ExpansionTile(
-                        initiallyExpanded: unknown.any((q) => q.id == selected),
-                        title: const Text('其他音质'),
-                        subtitle: const Text('可用性待确认'),
-                        children: [for (final q in unknown) option(q)],
-                      ),
-                  ],
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SheetHeader(title: '下载音质'),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                children: [
+                  for (final q in known) option(q),
+                  if (unknown.isNotEmpty)
+                    ExpansionTile(
+                      initiallyExpanded: unknown.any((q) => q.id == selected),
+                      title: const Text('其他音质'),
+                      subtitle: const Text('可用性待确认'),
+                      children: [for (final q in unknown) option(q)],
+                    ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: selected == null
+                      ? null
+                      : () {
+                          Navigator.pop(sheet);
+                          downloadSong(context, c, song, quality: selected);
+                        },
+                  icon: const Icon(Icons.download_rounded, size: 18),
+                  label: const Text('下载'),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: selected == null
-                        ? null
-                        : () {
-                            Navigator.pop(sheet);
-                            downloadSong(context, c, song, quality: selected);
-                          },
-                    icon: const Icon(Icons.download_rounded, size: 18),
-                    label: const Text('下载'),
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         );
       },
     ),
@@ -161,105 +156,96 @@ void showFileDetails(BuildContext context, AppController c, Song song) {
     closeLabel: '关闭',
     showDragHandle: true,
     isScrollControlled: true,
-    builder: (context) => SafeArea(
-      child: SizedBox(
-        height: MediaQuery.sizeOf(context).height * .65,
-        child: ListenableBuilder(
-          listenable: Listenable.merge([c.localMedia, c.serverFiles]),
-          builder: (context, _) {
-            final local = c.localMedia.folders(song);
-            final server = c.serverFiles.folders(song);
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-              children: [
-                const Text('本机', style: TextStyle(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 6),
-                if (local.isEmpty)
-                  const ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: Text('没有本机音频文件', style: TextStyle(color: lxMuted)),
-                  ),
-                for (final e in local.entries)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(AudioQuality.labelOf(e.key)),
-                    subtitle: Text(
-                      c.localMedia.pendingRemoval(song, e.key)
-                          ? '切歌后清除'
-                          : audioBytes(
-                              c.localMedia.fileFor(song, e.key)?.bytes ?? 0,
-                            ),
-                      style: const TextStyle(color: lxMuted, fontSize: 12),
-                    ),
-                    trailing: MusicBadge(
-                      e.value == 'downloads' ? '已下载' : '已缓存',
-                      tone: e.value == 'downloads'
-                          ? BadgeTone.blue
-                          : BadgeTone.green,
-                    ),
-                    onTap: e.value == 'cache'
-                        ? () => confirmClearSongCache(
-                            context,
-                            c,
-                            song,
-                            quality: e.key,
-                          )
-                        : null,
-                  ),
-                const Divider(height: 32),
-                Row(
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'LXServer',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: '刷新服务器状态',
-                      onPressed: () => c.refreshServerFiles(force: true),
-                      icon: const Icon(Icons.refresh_rounded, size: 20),
-                    ),
-                  ],
+    builder: (context) => ListenableBuilder(
+      listenable: Listenable.merge([c.localMedia, c.serverFiles]),
+      builder: (context, _) {
+        final local = c.localMedia.folders(song);
+        final server = c.serverFiles.folders(song);
+        return ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+          children: [
+            const Text('本机', style: TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 6),
+            if (local.isEmpty)
+              const ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text('没有本机音频文件', style: TextStyle(color: lxMuted)),
+              ),
+            for (final e in local.entries)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(AudioQuality.labelOf(e.key)),
+                subtitle: Text(
+                  c.localMedia.pendingRemoval(song, e.key)
+                      ? '切歌后清除'
+                      : audioBytes(
+                          c.localMedia.fileFor(song, e.key)?.bytes ?? 0,
+                        ),
+                  style: const TextStyle(color: lxMuted, fontSize: 12),
                 ),
-                if (!c.serverFiles.available)
-                  const ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      '服务器文件状态暂不可用',
-                      style: TextStyle(color: lxMuted),
-                    ),
-                  )
-                else if (server.isEmpty)
-                  const ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: Text('未发现服务器音频文件', style: TextStyle(color: lxMuted)),
+                trailing: MusicBadge(
+                  e.value == 'downloads' ? '已下载' : '已缓存',
+                  tone: e.value == 'downloads'
+                      ? BadgeTone.blue
+                      : BadgeTone.green,
+                ),
+                onTap: e.value == 'cache'
+                    ? () => confirmClearSongCache(
+                        context,
+                        c,
+                        song,
+                        quality: e.key,
+                      )
+                    : null,
+              ),
+            const Divider(height: 32),
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'LXServer',
+                    style: TextStyle(fontWeight: FontWeight.w700),
                   ),
-                for (final e in server.entries)
-                  ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(AudioQuality.labelOf(e.key)),
-                    trailing: MusicBadge(
-                      e.value == 'music' ? '已下载' : '已缓存',
-                      tone: e.value == 'music'
-                          ? BadgeTone.blue
-                          : BadgeTone.green,
-                    ),
-                  ),
-                const SizedBox(height: 8),
-                const Text(
-                  '服务器文件在网页端管理',
-                  style: TextStyle(color: lxMuted, fontSize: 12),
+                ),
+                IconButton(
+                  tooltip: '刷新服务器状态',
+                  onPressed: () => c.refreshServerFiles(force: true),
+                  icon: const Icon(Icons.refresh_rounded, size: 20),
                 ),
               ],
-            );
-          },
-        ),
-      ),
+            ),
+            if (!c.serverFiles.available)
+              const ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text('服务器文件状态暂不可用', style: TextStyle(color: lxMuted)),
+              )
+            else if (server.isEmpty)
+              const ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text('未发现服务器音频文件', style: TextStyle(color: lxMuted)),
+              ),
+            for (final e in server.entries)
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text(AudioQuality.labelOf(e.key)),
+                trailing: MusicBadge(
+                  e.value == 'music' ? '已下载' : '已缓存',
+                  tone: e.value == 'music' ? BadgeTone.blue : BadgeTone.green,
+                ),
+              ),
+            const SizedBox(height: 8),
+            const Text(
+              '服务器文件在网页端管理',
+              style: TextStyle(color: lxMuted, fontSize: 12),
+            ),
+          ],
+        );
+      },
     ),
   );
 }

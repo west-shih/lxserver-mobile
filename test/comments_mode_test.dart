@@ -10,12 +10,79 @@ import 'package:lxserver_mobile/app/controller.dart';
 import 'package:lxserver_mobile/core/lx_api.dart';
 import 'package:lxserver_mobile/features/player/comments_controller.dart';
 import 'package:lxserver_mobile/features/player/comments_sheet.dart';
+import 'package:lxserver_mobile/features/player/player_controls.dart';
 import 'package:lxserver_mobile/shared/result_pagination.dart';
 import 'package:lxserver_mobile/features/player/playback_mode.dart';
 import 'package:lxserver_mobile/features/player/player_screen.dart';
 import 'package:lxserver_mobile/shared/song_actions.dart';
 
 void main() {
+  testWidgets('Queue adapts to content within shared sheet limits', (
+    tester,
+  ) async {
+    final app = AppController();
+    final queueSession = Session(
+      Uri.parse('https://fixture.test'),
+      'fixture',
+      'fixture',
+    );
+    final tracks = List.generate(
+      30,
+      (i) => Song({'songmid': 'queue-$i', 'name': 'Track $i'}, MusicSource.kw),
+    );
+    app.player.enqueue(queueSession, tracks.first);
+    app.player.index = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showQueue(context, app.player),
+            child: const Text('Open queue'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open queue'));
+    await tester.pumpAndSettle();
+    double height() => tester.getSize(find.byType(BottomSheet)).height;
+    final screenHeight =
+        tester.view.physicalSize.height / tester.view.devicePixelRatio;
+    final shortHeight = height();
+    expect(shortHeight, closeTo(200 + 18, 1));
+    app.player.enqueueAll(queueSession, tracks.skip(1).take(3));
+    await tester.pumpAndSettle();
+    final middleHeight = height();
+    expect(middleHeight, greaterThan(shortHeight));
+    app.player.enqueueAll(queueSession, tracks.skip(4));
+    await tester.pumpAndSettle();
+    expect(height(), greaterThan(middleHeight));
+    expect(height(), closeTo(screenHeight * .78 + 18, 1));
+    expect(
+      tester
+          .state<ScrollableState>(find.byType(Scrollable))
+          .position
+          .maxScrollExtent,
+      greaterThan(0),
+    );
+    final selectedTile = find.byWidgetPredicate(
+      (widget) => widget is ListTile && widget.selected,
+    );
+    final inkSurface = tester
+        .element(selectedTile)
+        .findAncestorWidgetOfExactType<Material>()!;
+    expect(inkSurface.clipBehavior, Clip.hardEdge);
+    expect(
+      tester.getRect(find.byWidget(inkSurface)),
+      tester.getRect(find.byType(ListView)),
+    );
+    final header = tester.getRect(find.text('接下来播放'));
+    await tester.drag(find.byType(ListView), const Offset(0, -110));
+    await tester.pumpAndSettle();
+    expect(tester.getRect(find.text('接下来播放')), header);
+    await tester.pumpWidget(const SizedBox());
+    app.dispose();
+  });
+
   testWidgets('Unplayed song offers download quality but no playback quality', (
     tester,
   ) async {
@@ -276,7 +343,11 @@ void main() {
       expect(order.dy, closeTo(songLabel.dy, 1));
       expect(songLabel.dx, lessThan(count.dx));
       expect(count.dx, lessThan(order.dx));
-      expect(800 - close.dy, lessThan(350));
+      final screenHeight =
+          tester.view.physicalSize.height / tester.view.devicePixelRatio;
+      final sheetHeight = tester.getSize(find.byType(BottomSheet)).height;
+      expect(sheetHeight, greaterThanOrEqualTo(200 + 18));
+      expect(sheetHeight, lessThan(screenHeight * .60));
       await tester.tap(find.text('最热评论'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('最新评论').last);
@@ -342,6 +413,10 @@ void main() {
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
     expect(find.byType(ResultPagination), findsOneWidget);
+    expect(
+      tester.getBottomLeft(find.byType(ResultPagination)).dy,
+      closeTo(tester.getBottomLeft(find.byType(BottomSheet)).dy, 1),
+    );
     await tester.tap(find.byTooltip('下一页'));
     await tester.pumpAndSettle();
     expect(find.text('Fixture page 1'), findsNothing);

@@ -212,7 +212,7 @@ Future<void> showCollectionActions(
     context: context,
     title: collection.name,
     showDragHandle: true,
-    builder: (context) => SafeArea(
+    builder: (context) => SingleChildScrollView(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

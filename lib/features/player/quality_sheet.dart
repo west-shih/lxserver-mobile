@@ -12,113 +12,99 @@ void showQuality(BuildContext context, PlayerController player) {
     context: context,
     showDragHandle: true,
     isScrollControlled: true,
-    builder: (context) => SafeArea(
-      child: SizedBox(
-        key: const ValueKey('quality-sheet'),
-        height:
-            (130 +
-                    player.knownQualityOptions.length * 58.0 +
-                    (player.unverifiedQualityOptions.isEmpty ? 0 : 60))
-                .clamp(220.0, MediaQuery.sizeOf(context).height * .68),
-        child: ListenableBuilder(
-          listenable: player,
-          builder: (context, _) => Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: EdgeInsets.zero,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SheetHeader(title: '音质', closeLabel: '关闭'),
-                    if (player.changingQuality || player.resolving)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-                        child: Row(
-                          children: [
-                            const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              '正在尝试${AudioQuality.labelOf(player.qualityTarget)}…',
-                              style: const TextStyle(fontSize: 13),
-                            ),
-                          ],
+    builder: (context) => ListenableBuilder(
+      key: const ValueKey('quality-sheet'),
+      listenable: player,
+      builder: (context, _) => Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: EdgeInsets.zero,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SheetHeader(title: '音质', closeLabel: '关闭'),
+                if (player.changingQuality || player.resolving)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                    child: Row(
+                      children: [
+                        const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         ),
-                      )
-                    else if (player.qualityNotice != null ||
-                        player.error != null)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-                        child: Text(
-                          player.qualityNotice ?? player.error!,
-                          style: TextStyle(
-                            fontSize: 13,
-                            height: 1.5,
-                            color: player.qualityFailed || player.error != null
-                                ? Theme.of(context).colorScheme.error
-                                : lxGreen,
-                          ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '正在尝试${AudioQuality.labelOf(player.qualityTarget)}…',
+                          style: const TextStyle(fontSize: 13),
                         ),
-                      ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
-                  children: [
-                    ListTile(
-                      dense: true,
-                      leading: const Icon(Icons.refresh_rounded, size: 20),
-                      title: const Text(
-                        '重新尝试首选音质',
-                        style: TextStyle(fontSize: 14),
-                      ),
-                      enabled: !player.resolving && !player.changingQuality,
-                      onTap: player.retryPreferredQuality,
+                      ],
                     ),
-                    if (player.knownQualityOptions.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
-                        child: Text(
-                          '暂无已标注音质',
-                          style: TextStyle(color: lxMuted, fontSize: 13),
-                        ),
+                  )
+                else if (player.qualityNotice != null || player.error != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                    child: Text(
+                      player.qualityNotice ?? player.error!,
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.5,
+                        color: player.qualityFailed || player.error != null
+                            ? Theme.of(context).colorScheme.error
+                            : lxGreen,
                       ),
-                    for (final quality in player.knownQualityOptions)
-                      _qualityTile(player, quality),
-                    if (player.unverifiedQualityOptions.isNotEmpty)
-                      ExpansionTile(
-                        key: const ValueKey('unverified-quality-options'),
-                        title: const Text(
-                          '尝试其他音质',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        subtitle: const Text(
-                          '可用性待确认',
-                          style: TextStyle(fontSize: 11, color: lxMuted),
-                        ),
-                        children: [
-                          for (final quality in player.unverifiedQualityOptions)
-                            _qualityTile(player, quality),
-                        ],
-                      ),
-                  ],
-                ),
-              ),
-            ],
+                    ),
+                  ),
+              ],
+            ),
           ),
-        ),
+          Flexible(
+            child: ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+              children: [
+                ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.refresh_rounded, size: 20),
+                  title: const Text('重新尝试首选音质', style: TextStyle(fontSize: 14)),
+                  enabled: !player.resolving && !player.changingQuality,
+                  onTap: player.retryPreferredQuality,
+                ),
+                if (player.knownQualityOptions.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    child: Text(
+                      '暂无已标注音质',
+                      style: TextStyle(color: lxMuted, fontSize: 13),
+                    ),
+                  ),
+                for (final quality in player.knownQualityOptions)
+                  _qualityTile(player, quality),
+                if (player.unverifiedQualityOptions.isNotEmpty)
+                  ExpansionTile(
+                    key: const ValueKey('unverified-quality-options'),
+                    title: const Text(
+                      '尝试其他音质',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: const Text(
+                      '可用性待确认',
+                      style: TextStyle(fontSize: 11, color: lxMuted),
+                    ),
+                    children: [
+                      for (final quality in player.unverifiedQualityOptions)
+                        _qualityTile(player, quality),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     ),
   );

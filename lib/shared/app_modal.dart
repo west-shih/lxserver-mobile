@@ -123,6 +123,7 @@ Future<T?> showAppSheet<T>({
   String closeLabel = '取消',
   bool showDragHandle = true,
   bool isScrollControlled = true,
+  bool keepMinimumHeight = false,
 }) => showModalBottomSheet<T>(
   context: context,
   isScrollControlled: isScrollControlled,
@@ -138,46 +139,52 @@ Future<T?> showAppSheet<T>({
     child: Builder(
       builder: (context) {
         final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+        final handleHeight = showDragHandle ? 18.0 : 0.0;
         return Padding(
           padding: EdgeInsets.only(bottom: keyboard),
-          child: SafeArea(
-            top: false,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: (MediaQuery.sizeOf(context).height * .92 - keyboard)
-                    .clamp(120, double.infinity),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (showDragHandle)
-                    Center(
-                      child: Container(
-                        width: 30,
-                        height: 3,
-                        margin: const EdgeInsets.only(top: 9, bottom: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFD5E0D9),
-                          borderRadius: BorderRadius.circular(3),
+          child: MediaQuery.removeViewInsets(
+            context: context,
+            removeBottom: true,
+            child: SafeArea(
+              top: false,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight:
+                      MediaQuery.sizeOf(context).height * .78 + handleHeight,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (showDragHandle)
+                      Center(
+                        child: Container(
+                          width: 30,
+                          height: 3,
+                          margin: const EdgeInsets.only(top: 9, bottom: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFD5E0D9),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
                         ),
                       ),
+                    if (title != null)
+                      SheetHeader(
+                        title: title,
+                        subtitle: subtitle,
+                        closeLabel: closeLabel,
+                      ),
+                    Flexible(
+                      fit: FlexFit.loose,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: keepMinimumHeight ? 200 : 0,
+                        ),
+                        child: Builder(builder: builder),
+                      ),
                     ),
-                  if (title != null)
-                    SheetHeader(
-                      title: title,
-                      subtitle: subtitle,
-                      closeLabel: closeLabel,
-                    ),
-                  Flexible(
-                    fit: FlexFit.loose,
-                    child: MediaQuery.removeViewInsets(
-                      context: context,
-                      removeBottom: true,
-                      child: builder(context),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -259,15 +266,4 @@ class SheetHeader extends StatelessWidget {
       ],
     ),
   );
-}
-
-// Keep short option sets compact while allowing long lists to scroll.
-double modalPanelHeight(
-  BuildContext context,
-  double contentHeight, {
-  double minHeight = 200,
-  double maxFraction = .65,
-}) {
-  final desired = contentHeight < minHeight ? minHeight : contentHeight;
-  return desired.clamp(0.0, MediaQuery.sizeOf(context).height * maxFraction);
 }

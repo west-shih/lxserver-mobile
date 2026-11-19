@@ -656,42 +656,39 @@ class _CollectionScreenState extends State<CollectionScreen>
       showDragHandle: true,
       isScrollControlled: true,
       builder: (sheet) => StatefulBuilder(
-        builder: (sheet, update) => SafeArea(
-          child: SizedBox(
-            height: MediaQuery.sizeOf(sheet).height * .6,
-            child: Column(
-              children: [
-                SheetHeader(title: '下载 ${songs.length} 首歌曲'),
-                Expanded(
-                  child: ListView(
-                    children: [
-                      for (final q in AudioQuality.values)
-                        ListTile(
-                          selected: selectedQuality == q.id,
-                          title: Text(q.label),
-                          subtitle: Text(q.detail),
-                          trailing: selectedQuality == q.id
-                              ? const Icon(Icons.check_rounded, color: lxGreen)
-                              : null,
-                          onTap: () => update(() => selectedQuality = q.id),
-                        ),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: () => Navigator.pop(sheet, selectedQuality),
-                      icon: const Icon(Icons.download_rounded, size: 18),
-                      label: const Text('下载'),
+        builder: (sheet, update) => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SheetHeader(title: '下载 ${songs.length} 首歌曲'),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final q in AudioQuality.values)
+                    ListTile(
+                      selected: selectedQuality == q.id,
+                      title: Text(q.label),
+                      subtitle: Text(q.detail),
+                      trailing: selectedQuality == q.id
+                          ? const Icon(Icons.check_rounded, color: lxGreen)
+                          : null,
+                      onTap: () => update(() => selectedQuality = q.id),
                     ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.pop(sheet, selectedQuality),
+                  icon: const Icon(Icons.download_rounded, size: 18),
+                  label: const Text('下载'),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

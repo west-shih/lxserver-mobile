@@ -14,48 +14,42 @@ void showPreferredQuality(BuildContext context, AppController controller) {
     context: context,
     showDragHandle: true,
     isScrollControlled: true,
-    builder: (sheetContext) => SafeArea(
-      child: SizedBox(
-        height: MediaQuery.sizeOf(sheetContext).height * .65,
-        child: Column(
-          children: [
-            const SheetHeader(
-              title: '首选音质',
-              subtitle: '用于后续播放；当前歌曲保持不变，不可用时自动降低音质',
-            ),
-            Expanded(
-              child: ListView(
-                children: [
-                  for (final quality in AudioQuality.values)
-                    ListTile(
-                      selected:
-                          controller.player.preferredQuality == quality.id,
-                      title: Text(quality.label),
-                      subtitle: Text(quality.detail),
-                      trailing: controller.player.preferredQuality == quality.id
-                          ? const Icon(Icons.check_rounded, color: lxGreen)
-                          : null,
-                      onTap: () async {
-                        Navigator.pop(sheetContext);
-                        try {
-                          await controller.player.setPreferredQuality(
-                            quality.id,
-                          );
-                        } catch (_) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('首选音质已修改，但未能保存到本机')),
-                            );
-                          }
-                        }
-                      },
-                    ),
-                ],
-              ),
-            ),
-          ],
+    builder: (sheetContext) => Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SheetHeader(
+          title: '首选音质',
+          subtitle: '用于后续播放；当前歌曲保持不变，不可用时自动降低音质',
         ),
-      ),
+        Flexible(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              for (final quality in AudioQuality.values)
+                ListTile(
+                  selected: controller.player.preferredQuality == quality.id,
+                  title: Text(quality.label),
+                  subtitle: Text(quality.detail),
+                  trailing: controller.player.preferredQuality == quality.id
+                      ? const Icon(Icons.check_rounded, color: lxGreen)
+                      : null,
+                  onTap: () async {
+                    Navigator.pop(sheetContext);
+                    try {
+                      await controller.player.setPreferredQuality(quality.id);
+                    } catch (_) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('首选音质已修改，但未能保存到本机')),
+                        );
+                      }
+                    }
+                  },
+                ),
+            ],
+          ),
+        ),
+      ],
     ),
   );
 }

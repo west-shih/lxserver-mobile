@@ -28,32 +28,28 @@ Future<MusicCollection?> pickCollection(
     context: context,
     title: '收藏到歌单',
     subtitle: '已选 $songCount 首，重复歌曲不会重复添加',
-    builder: (sheet) => SizedBox(
-      height: modalPanelHeight(
-        sheet,
-        targets.length * 64.0,
-        minHeight: 64,
-        maxFraction: .6,
-      ),
-      child: ListView(
-        children: [
-          for (final collection in targets)
-            ListTile(
-              leading: Icon(
-                collection.id == 'love'
-                    ? Icons.favorite_outline_rounded
-                    : Icons.queue_music_rounded,
-              ),
-              title: Text(
-                collection.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              subtitle: Text('${collection.songs.length} 首'),
-              onTap: () => Navigator.pop(sheet, collection),
+    builder: (sheet) => ListView(
+      primary: false,
+      shrinkWrap: true,
+      padding: EdgeInsets.zero,
+      children: [
+        for (final collection in targets)
+          ListTile(
+            dense: true,
+            leading: Icon(
+              collection.id == 'love'
+                  ? Icons.favorite_outline_rounded
+                  : Icons.queue_music_rounded,
             ),
-        ],
-      ),
+            title: Text(
+              collection.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: Text('${collection.songs.length} 首'),
+            onTap: () => Navigator.pop(sheet, collection),
+          ),
+      ],
     ),
   );
 }

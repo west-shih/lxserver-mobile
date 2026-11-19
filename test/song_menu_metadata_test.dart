@@ -30,6 +30,10 @@ void main() {
   testWidgets(
     'Song menu comments read the selected song without starting playback',
     (tester) async {
+      tester.view.padding = FakeViewPadding(
+        bottom: 48 * tester.view.devicePixelRatio,
+      );
+      addTearDown(tester.view.resetPadding);
       Map? requested;
       final c = AppController(
         api: LxApi(
@@ -57,6 +61,15 @@ void main() {
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
       expect(find.text('收藏到歌单'), findsOneWidget);
+      final infoTile = find.ancestor(
+        of: find.text('信息'),
+        matching: find.byType(ListTile),
+      );
+      expect(
+        tester.getBottomLeft(find.byType(BottomSheet)).dy -
+            tester.getBottomLeft(infoTile).dy,
+        closeTo(48 + 4, 1),
+      );
       await tester.tap(find.text('评论'));
       await tester.pumpAndSettle();
       expect(find.text('歌曲评论'), findsOneWidget);
@@ -70,6 +83,10 @@ void main() {
   testWidgets(
     'Collection picker excludes default, cancel writes nothing, repeat collection deduplicates',
     (tester) async {
+      tester.view.padding = FakeViewPadding(
+        bottom: 48 * tester.view.devicePixelRatio,
+      );
+      addTearDown(tester.view.resetPadding);
       var data = <String, dynamic>{
         'loveList': [],
         'defaultList': [
@@ -115,6 +132,23 @@ void main() {
       await openPicker();
       expect(find.text('默认列表'), findsNothing);
       expect(find.text('我的喜欢'), findsOneWidget);
+      final lastOption = find.ancestor(
+        of: find.text('Fixture list'),
+        matching: find.byType(ListTile),
+      );
+      expect(tester.widget<ListTile>(lastOption).dense, isTrue);
+      expect(
+        tester.getBottomLeft(find.byType(BottomSheet)).dy -
+            tester.getBottomLeft(lastOption).dy,
+        closeTo(48, 1),
+      );
+      ScrollPosition pickerPosition() =>
+          tester.state<ScrollableState>(find.byType(Scrollable)).position;
+      expect(pickerPosition().maxScrollExtent, 0);
+      expect(
+        pickerPosition().physics.shouldAcceptUserOffset(pickerPosition()),
+        isFalse,
+      );
       await tester.tap(find.text('取消'));
       await tester.pumpAndSettle();
       expect(writes, 0);
@@ -128,6 +162,16 @@ void main() {
       expect((data['userList'] as List).single['extra'], 42);
       expect(data['extra'], true);
       expect(c.player.current, isNull);
+      (data['userList'] as List).addAll([
+        for (var i = 0; i < 20; i++)
+          {'id': 'extra-$i', 'name': 'Extra $i', 'list': []},
+      ]);
+      await openPicker();
+      expect(pickerPosition().maxScrollExtent, greaterThan(0));
+      expect(
+        pickerPosition().physics.shouldAcceptUserOffset(pickerPosition()),
+        isTrue,
+      );
       await tester.pumpWidget(const SizedBox());
       c.dispose();
     },

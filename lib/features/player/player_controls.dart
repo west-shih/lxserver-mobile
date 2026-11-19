@@ -113,7 +113,7 @@ void showPlaybackMode(BuildContext context, PlayerController player) {
     context: context,
     title: '播放模式',
     showDragHandle: true,
-    builder: (context) => SafeArea(
+    builder: (context) => SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
         child: Column(
@@ -168,75 +168,74 @@ void showQueue(BuildContext context, PlayerController player) {
     context: context,
     showDragHandle: true,
     isScrollControlled: true,
-    builder: (context) => SafeArea(
-      child: SizedBox(
-        height: (90 + player.queue.length * 68.0).clamp(
-          200.0,
-          MediaQuery.sizeOf(context).height * .6,
-        ),
-        child: ListenableBuilder(
-          listenable: player,
-          builder: (context, _) => Column(
-            children: [
-              SheetHeader(
-                title: '接下来播放',
-                subtitle: '${player.queue.length} 首',
-                closeLabel: '关闭',
-              ),
-              Expanded(
-                child: player.queue.isEmpty
-                    ? const Center(child: Text('队列还是空的，去搜索一首喜欢的歌'))
-                    : ListView.builder(
-                        itemCount: player.queue.length,
-                        itemBuilder: (context, i) {
-                          final song = player.queue[i];
-                          return ListTile(
-                            selected: i == player.index,
-                            leading: SongArt(url: song.image, size: 44),
-                            title: Text(
-                              song.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: i == player.index ? lxGreen : lxInk,
-                              ),
-                            ),
-                            subtitle: Text(
-                              song.singer,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (i == player.index)
-                                  const Icon(
-                                    Icons.graphic_eq,
-                                    color: lxGreen,
-                                    size: 18,
-                                  ),
-                                IconButton(
-                                  tooltip: '移出队列',
-                                  onPressed: player.resolving
-                                      ? null
-                                      : () => player.remove(i),
-                                  icon: const Icon(
-                                    Icons.close_rounded,
-                                    size: 20,
-                                    color: lxMuted,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            enabled: !player.resolving,
-                            onTap: () => player.select(i),
-                          );
-                        },
-                      ),
-              ),
-            ],
+    keepMinimumHeight: true,
+    builder: (context) => ListenableBuilder(
+      listenable: player,
+      builder: (context, _) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SheetHeader(
+            title: '接下来播放',
+            subtitle: '${player.queue.length} 首',
+            closeLabel: '关闭',
           ),
-        ),
+          Flexible(
+            child: player.queue.isEmpty
+                ? const Center(heightFactor: 1, child: Text('队列还是空的，去搜索一首喜欢的歌'))
+                : Material(
+                    type: MaterialType.transparency,
+                    clipBehavior: Clip.hardEdge,
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: player.queue.length,
+                      itemBuilder: (context, i) {
+                        final song = player.queue[i];
+                        return ListTile(
+                          selected: i == player.index,
+                          leading: SongArt(url: song.image, size: 44),
+                          title: Text(
+                            song.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: i == player.index ? lxGreen : lxInk,
+                            ),
+                          ),
+                          subtitle: Text(
+                            song.singer,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (i == player.index)
+                                const Icon(
+                                  Icons.graphic_eq,
+                                  color: lxGreen,
+                                  size: 18,
+                                ),
+                              IconButton(
+                                tooltip: '移出队列',
+                                onPressed: player.resolving
+                                    ? null
+                                    : () => player.remove(i),
+                                icon: const Icon(
+                                  Icons.close_rounded,
+                                  size: 20,
+                                  color: lxMuted,
+                                ),
+                              ),
+                            ],
+                          ),
+                          enabled: !player.resolving,
+                          onTap: () => player.select(i),
+                        );
+                      },
+                    ),
+                  ),
+          ),
+        ],
       ),
     ),
   );

@@ -116,65 +116,59 @@ class _DiscoveryScreenState extends State<DiscoveryScreen>
       title: '选择分类',
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: SizedBox(
-          height: d.groups.isEmpty
-              ? 240
-              : MediaQuery.sizeOf(context).height * .65,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: ChoiceChip(
-                  label: const Text('全部分类'),
-                  selected: d.tag.isEmpty,
-                  onSelected: (_) {
-                    Navigator.pop(context);
-                    d.tag = '';
-                    d.tagName = '全部分类';
-                    _load();
-                  },
+      builder: (context) => ListView(
+        shrinkWrap: true,
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: ChoiceChip(
+              label: const Text('全部分类'),
+              selected: d.tag.isEmpty,
+              onSelected: (_) {
+                Navigator.pop(context);
+                d.tag = '';
+                d.tagName = '全部分类';
+                _load();
+              },
+            ),
+          ),
+          for (final group in d.groups) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Text(
+                '${group['name'] ?? ''}',
+                style: const TextStyle(
+                  color: lxMuted,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              for (final group in d.groups) ...[
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  child: Text(
-                    '${group['name'] ?? ''}',
-                    style: const TextStyle(
-                      color: lxMuted,
-                      fontWeight: FontWeight.w700,
-                    ),
+            ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                for (final tag
+                    in (group['list'] as List? ?? []).whereType<Map>())
+                  ChoiceChip(
+                    label: Text('${tag['name']}'),
+                    selected: d.tag == '${tag['id']}',
+                    onSelected: (_) {
+                      Navigator.pop(context);
+                      d.tag = '${tag['id']}';
+                      d.tagName = '${tag['name']}';
+                      _load();
+                    },
                   ),
-                ),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: [
-                    for (final tag
-                        in (group['list'] as List? ?? []).whereType<Map>())
-                      ChoiceChip(
-                        label: Text('${tag['name']}'),
-                        selected: d.tag == '${tag['id']}',
-                        onSelected: (_) {
-                          Navigator.pop(context);
-                          d.tag = '${tag['id']}';
-                          d.tagName = '${tag['name']}';
-                          _load();
-                        },
-                      ),
-                  ],
-                ),
               ],
-              if (d.groups.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.only(top: 20),
-                  child: Text('当前平台没有返回更多分类', style: TextStyle(color: lxMuted)),
-                ),
-            ],
-          ),
-        ),
+            ),
+          ],
+          if (d.groups.isEmpty)
+            const Padding(
+              padding: EdgeInsets.only(top: 20),
+              child: Text('当前平台没有返回更多分类', style: TextStyle(color: lxMuted)),
+            ),
+        ],
       ),
     );
   }

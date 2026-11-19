@@ -124,7 +124,7 @@ class CollectionHeader extends StatelessWidget {
                 isScrollControlled: true,
                 builder: (context) => SafeArea(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,

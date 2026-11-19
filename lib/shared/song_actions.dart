@@ -142,7 +142,7 @@ void showSongActions(
                 showFileDetails(origin, controller, song);
               },
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 4),
           ],
         ),
       ),
