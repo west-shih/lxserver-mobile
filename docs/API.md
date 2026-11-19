@@ -178,6 +178,14 @@ QQ 评论 SDK 的 getSongId 优先直接使用 songId，否则用 songmid 查询
 - 2026-11-14 Android SM S9180 只读排查：一份 QQ 关联歌单服务端 Album 非空，原歌单详情 info.img 非空，手机请求已有图片返回 200 / image/jpeg；客户端曾保留空 image，重新 GET 私人歌单后恢复并在列表显示。未执行真实 POST，不记录歌单名、ID、图片完整地址或鉴权数据。部署完整 commit 仍未知，结论仅限这组只读接口及图片。
 - CollectionScreen 同时订阅 AppController 和 LibraryController，重读后更新封面/标题，无需退出重进。Mock 覆盖只读重载零写入、详情封面即时更新、刷新封面写入与空白响应保留旧图。
 
+## 咪咕歌词缺少链接时返回 HTTP 500
+
+2026-11-20 Android 真机复现：播放器恢复的咪咕歌曲有歌曲 ID，但缺少 `mrcUrl/lrcUrl/trcUrl`。歌词页显示 HTTP 500，手动重试后仍失败，音频显示已缓存。
+
+固定基线的 GET `/api/music/lyric` 通过 `src/server/music/downloadLyrics.ts` 的 `normalizeDownloadLyricSong` 将缺失的 `mrcUrl` 补为空字符串。咪咕 `mg/lyric.js` 只在 `mrcUrl == null` 时按歌曲 ID 补查，因此没有可用本地歌词时，空字符串会跳过补查并触发「获取歌词失败」。
+
+部署容器报告版本 v2.2.0，完整 commit 未确认。用部署中的实际模块和同一歌曲 ID 做只读对照：无缓存命中的解析器返回「获取歌词失败」，直接用 ID 调用咪咕模块可取得 1018 字符歌词，给解析器传入该曲新搜索结果的 `lrcUrl` 也可取得 1018 字符。重新搜索同一咪咕版本是临时绕行方案，手机端未实测。上游修复待跟进，验收时应确认无歌词链接及无缓存的恢复队列能按 ID 取回歌词。未修改或重启部署容器。
+
 ## 歌单元数据与完整收藏（v2.2.0）
 
 - 列表/搜索返回的 author/desc/play_count/time 与详情 info 中同名字段用于显示；详情优先，缺失时保留列表值。证据：五平台 songList.js，QQ 活动详情函数映射 dirinfo.host_nick/desc/listennum 到 info；QQ/酷狗列表中的 time 由各自创建/发布时间格式化，不能泛称更新时间。播放量不是唯一听众人数。私人 userList 的原生收藏创建只保证 name/source/sourceListId/Album/locationUpdateTime/list，不假设存在创作者/简介或日期。
