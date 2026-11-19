@@ -9,6 +9,7 @@ import 'package:lxserver_mobile/app/controller.dart';
 import 'package:lxserver_mobile/core/lx_api.dart';
 import 'package:lxserver_mobile/features/discovery/discovery_controller.dart';
 import 'package:lxserver_mobile/features/discovery/discovery_screen.dart';
+import 'package:lxserver_mobile/features/player/playback_glyph.dart';
 import 'package:lxserver_mobile/shared/song_actions.dart';
 
 final session = Session(
@@ -64,6 +65,15 @@ void main() {
       final infoTile = find.ancestor(
         of: find.text('信息'),
         matching: find.byType(ListTile),
+      );
+      final commentTile = find.widgetWithText(ListTile, '评论');
+      final glyph = tester.widget<PlaybackGlyph>(
+        find.descendant(of: commentTile, matching: find.byType(PlaybackGlyph)),
+      );
+      expect(glyph.type, PlaybackGlyphType.comment);
+      expect(
+        tester.getBottomLeft(commentTile).dy,
+        tester.getTopLeft(infoTile).dy,
       );
       expect(
         tester.getBottomLeft(find.byType(BottomSheet)).dy -

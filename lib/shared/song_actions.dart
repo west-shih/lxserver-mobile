@@ -7,6 +7,7 @@ import '../app/controller.dart';
 import '../core/lx_api.dart';
 import '../features/player/quality_sheet.dart';
 import '../features/player/comments_sheet.dart';
+import '../features/player/playback_glyph.dart';
 import 'song_art.dart';
 import '../features/local_media/local_media_screens.dart';
 
@@ -108,14 +109,6 @@ void showSongActions(
               },
             ),
             ListTile(
-              leading: const Icon(Icons.chat_bubble_outline_rounded),
-              title: const Text('评论'),
-              onTap: () {
-                Navigator.pop(context);
-                showComments(origin, controller, song);
-              },
-            ),
-            ListTile(
               leading: const Icon(Icons.download_rounded),
               title: const Text('下载到手机'),
               onTap: () {
@@ -134,6 +127,14 @@ void showSongActions(
                   }
                 },
               ),
+            ListTile(
+              leading: const PlaybackGlyph(PlaybackGlyphType.comment, size: 25),
+              title: const Text('评论'),
+              onTap: () {
+                Navigator.pop(context);
+                showComments(origin, controller, song);
+              },
+            ),
             ListTile(
               leading: const Icon(Icons.info_outline_rounded),
               title: const Text('信息'),
