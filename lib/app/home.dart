@@ -11,6 +11,7 @@ import '../features/search/search_screen.dart';
 import '../features/search/entity_search_screen.dart';
 import '../features/search/music_entity.dart';
 import '../features/library/library_screen.dart';
+import '../features/library/create_collection_dialog.dart';
 import '../features/discovery/discovery_screen.dart';
 import '../features/discovery/shared_playlist_sheet.dart';
 import '../features/player/player_views.dart';
@@ -72,6 +73,7 @@ class _MusicHomeState extends State<MusicHome> implements RouteAware {
   final _songQuery = TextEditingController();
   final _playlistQuery = TextEditingController();
   int _tab = 0;
+  int _libraryCategory = 0;
   bool _loadedLibrary = false;
   bool _loadedDiscovery = false;
   @override
@@ -79,6 +81,10 @@ class _MusicHomeState extends State<MusicHome> implements RouteAware {
     super.initState();
     final c = widget.controller;
     _tab = c.homeTab;
+    final libraryCategory = c.pageState('home.library')['tab'];
+    if (libraryCategory is int) {
+      _libraryCategory = libraryCategory.clamp(0, 2);
+    }
     _songQuery.text = c.songDraft;
     _playlistQuery.text = c.playlistDraft;
     _songQuery.addListener(_rememberDrafts);
@@ -199,6 +205,26 @@ class _MusicHomeState extends State<MusicHome> implements RouteAware {
                             ),
                     ),
                     if (_tab == 2)
+                      Visibility(
+                        visible: _libraryCategory == 0,
+                        maintainSize: true,
+                        maintainAnimation: true,
+                        maintainState: true,
+                        child: ListenableBuilder(
+                          listenable: c.library,
+                          builder: (context, _) => IconButton(
+                            tooltip: '新建歌单',
+                            onPressed:
+                                c.offlineMode ||
+                                    c.library.loading ||
+                                    c.library.mutating
+                                ? null
+                                : () => showCreateCollection(context, c),
+                            icon: const Icon(Icons.playlist_add_rounded),
+                          ),
+                        ),
+                      ),
+                    if (_tab == 2)
                       IconButton(
                         tooltip: '本机下载',
                         onPressed: () => Navigator.push(
@@ -306,7 +332,11 @@ class _MusicHomeState extends State<MusicHome> implements RouteAware {
                       ? SearchScreen(controller: c)
                       : EntitySearchScreen(controller: c),
                   DiscoveryScreen(controller: c),
-                  LibraryScreen(controller: c),
+                  LibraryScreen(
+                    controller: c,
+                    onCategoryChanged: (index) =>
+                        setState(() => _libraryCategory = index),
+                  ),
                 ],
               ),
             ),

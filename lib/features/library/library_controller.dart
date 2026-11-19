@@ -365,9 +365,7 @@ class LibraryController extends ChangeNotifier {
         await load(session);
         return false;
       }
-      final random = Random.secure();
-      final id =
-          '${summary.source.name}_${List.generate(4, (_) => random.nextInt(1 << 32).toRadixString(16).padLeft(8, '0')).join()}';
+      final id = _newListId(summary.source.name);
       lists.add({
         'id': id,
         'name': summary.name,
@@ -397,6 +395,60 @@ class LibraryController extends ChangeNotifier {
   }
 
   bool mutating = false;
+
+  String newCollectionId() => _newListId('webplayer');
+
+  String _newListId(String source) {
+    final random = Random.secure();
+    final suffix = List.generate(
+      4,
+      (_) => random.nextInt(1 << 32).toRadixString(16).padLeft(8, '0'),
+    ).join();
+    return '${source}_$suffix';
+  }
+
+  Future<String> createCollection(
+    Session session, {
+    required String id,
+    required String name,
+    List<Song> songs = const [],
+  }) async {
+    final title = name.trim();
+    if (title.isEmpty) throw const ApiFailure('歌单名称不能为空');
+    var savedName = title;
+    await _editSnapshot(session, (data) {
+      if (data is! Map<String, dynamic> ||
+          data['userList'] is! List ||
+          data['loveList'] is! List ||
+          data['defaultList'] is! List ||
+          (data['userList'] as List).any(
+            (row) => row is! Map<String, dynamic>,
+          )) {
+        throw const ApiFailure('歌单格式不兼容，未保存');
+      }
+      final lists = (data['userList'] as List).cast<Map<String, dynamic>>();
+      for (final row in lists) {
+        if (row['id'] == id) {
+          savedName = row['name'] as String? ?? title;
+          return LibraryEditResult(data, const [], false);
+        }
+      }
+      final edited = editLibrarySnapshot(
+        {
+          ...data,
+          'userList': [
+            ...lists,
+            {'id': id, 'name': title, 'source': 'webplayer', 'list': []},
+          ],
+        },
+        id,
+        addSongs: songs,
+      );
+      return LibraryEditResult(edited.snapshot, edited.songs, true);
+    });
+    return savedName;
+  }
+
   Future<void> changeCollection(
     Session session,
     MusicCollection collection, {

@@ -80,6 +80,49 @@ class Harness {
 }
 
 void main() {
+  test('Creates empty and populated private lists and retries by ID', () async {
+    final h = Harness();
+    addTearDown(h.library.dispose);
+    final emptyId = h.library.newCollectionId();
+    final populatedId = h.library.newCollectionId();
+    final song = Song(row(1), MusicSource.tx);
+    await h.library.createCollection(session, id: emptyId, name: ' Empty ');
+    expect(h.ids(emptyId), isEmpty);
+    await h.library.createCollection(
+      session,
+      id: populatedId,
+      name: 'With songs',
+      songs: [
+        song,
+        song,
+        Song(row(1, source: 'wy'), MusicSource.wy),
+      ],
+    );
+    expect(h.ids(populatedId), ['tx:1', 'wy:1']);
+    expect(
+      await h.library.createCollection(
+        session,
+        id: populatedId,
+        name: 'Retry draft',
+        songs: [song],
+      ),
+      'With songs',
+    );
+    expect(h.writes, 2);
+    expect(h.ids(populatedId), ['tx:1', 'wy:1']);
+    final lists = h.data['userList'] as List;
+    expect(lists.take(2), snapshot()['userList']);
+    expect(lists[2], {
+      'id': emptyId,
+      'name': 'Empty',
+      'source': 'webplayer',
+      'list': [],
+    });
+    expect(h.data['defaultList'], snapshot()['defaultList']);
+    expect(h.data['loveList'], snapshot()['loveList']);
+    expect(h.data['rootExtra'], true);
+  });
+
   test('Deleting from system favorites respects platform identity and preserves unrelated songs and fields', () async {
     final h = Harness();
     await h.library.load(session);

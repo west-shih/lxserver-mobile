@@ -16,8 +16,13 @@ import 'collection_actions.dart';
 import 'library_controller.dart';
 
 class LibraryScreen extends StatefulWidget {
-  const LibraryScreen({super.key, required this.controller});
+  const LibraryScreen({
+    super.key,
+    required this.controller,
+    this.onCategoryChanged,
+  });
   final AppController controller;
+  final ValueChanged<int>? onCategoryChanged;
   @override
   State<LibraryScreen> createState() => _LibraryScreenState();
 }
@@ -227,7 +232,10 @@ class _LibraryScreenState extends State<LibraryScreen>
                 selectedIndex: _tab,
                 onSelected: _busy
                     ? null
-                    : (index) => setState(() => _tab = index),
+                    : (index) {
+                        setState(() => _tab = index);
+                        widget.onCategoryChanged?.call(index);
+                      },
               ),
             ),
             SliverToBoxAdapter(

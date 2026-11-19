@@ -527,7 +527,7 @@ class _CollectionScreenState extends State<CollectionScreen>
     final session = c.session;
     final songs = _selectedSongs;
     if (session == null || songs.isEmpty || _saving) return;
-    final target = await pickCollection(context, c, songCount: songs.length);
+    final target = await pickCollection(context, c, songs: songs);
     if (target == null || !mounted || c.session != session) return;
     setState(() => _saving = true);
     try {

@@ -172,6 +172,33 @@ void main() {
         pickerPosition().physics.shouldAcceptUserOffset(pickerPosition()),
         isTrue,
       );
+      final create = find.text('新建歌单');
+      final pinnedPosition = tester.getCenter(create);
+      await tester.drag(find.byType(Scrollable), const Offset(0, -300));
+      await tester.pumpAndSettle();
+      expect(tester.getCenter(create), pinnedPosition);
+      await tester.tap(create);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, '取消').last);
+      await tester.pumpAndSettle();
+      expect(create, findsOneWidget);
+      expect(writes, 1);
+      await tester.tap(create);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('创建并加入'));
+      await tester.pumpAndSettle();
+      expect(find.text('歌单名称不能为空'), findsOneWidget);
+      expect(writes, 1);
+      await tester.enterText(find.byType(TextField), 'New list');
+      await tester.tap(find.text('创建并加入'));
+      await tester.pumpAndSettle();
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(find.byType(AlertDialog), findsNothing);
+      final created = (data['userList'] as List).last as Map;
+      expect(created['name'], 'New list');
+      expect(created['source'], 'webplayer');
+      expect(created['list'], hasLength(1));
+      expect(writes, 2);
       await tester.pumpWidget(const SizedBox());
       c.dispose();
     },

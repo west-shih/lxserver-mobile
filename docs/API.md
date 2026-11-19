@@ -196,6 +196,12 @@ QQ 评论 SDK 的 getSongId 优先直接使用 songId，否则用 songmid 查询
 
 基线 `src/server/server.ts` 的 GET/POST `/api/user/list` 与 `listDataManage.ts` 的歌曲移除/位置更新支持私人列表内容修改；系统 love/default 的歌曲同样可以修改，系统列表自身仍不可删除/重命名。LibraryController.editSongs 先取最新完整快照，library_edit 按平台限定歌曲身份变更目标，保留其他列表、既有歌曲原始数据及未知字段。复制仅规范化新条目并查重；排序要求最新目标顺序与开始编辑时一致，拒绝过期草稿。删除和草稿排序一起提交；无变化不 POST，明确 success 后发布状态并只读回查。回查失败提示已保存，不重新 POST；旧读请求不能回滚新结果。服务端无 CAS，GET/POST 间仍可能冲突，见 [版本限制](UPSTREAM_LIMITATIONS.md)。library_edit_test 与 collection_editor_test 为 Mock 验证，未执行真实私人歌曲写入。
 
+### 新建私人歌单（v2.2.0）
+
+固定基线 `public/music/app.js` 的 `handleCreateList` 将 `{id, name, source: 'webplayer', list: []}` 追加到私人 `userList`。网页 `pushDataChange` 的普通用户 REST 分支提交完整快照至 `POST /api/user/list`，`server.ts` 经普通用户鉴权后调用 `listDataManage.restore` 并创建快照。
+
+客户端在写入锁内读取最新快照，追加 `webplayer_` 加 128 位随机十六进制 ID 的条目，保留现有歌单、系统列表和其他请求字段。创建并加入复用私人歌单既有歌曲格式和平台歌曲身份去重，在同一次 POST 提交歌单和歌曲。响应确认成功后回读；同一个输入框内手动重试沿用原 ID，若最新快照包含该 ID，则沿用已保存的歌单，省去重复 POST。接口没有 CAS，其他设备同时写入仍有覆盖窗口。已核对固定基线并使用 Mock 验证，真实部署写入及跨设备可见性待验收。
+
 ### 私人歌单列表排序（v2.2.0）
 
 `listDataManage.restore/getListData` 按 userList 数组顺序恢复及导出歌单；`userListsUpdatePosition` 同样通过调整 userLists 数组次序排序。客户端沿用已核对的 GET/POST `/api/user/list`，不新增接口：先读最新快照，要求 userList ID 顺序与拖动开始时一致，并校验新顺序是完整唯一排列，然后仅重排原始歌单对象，保留最新歌曲、元数据、未知字段、love/default 及其他顶层字段，不改写日期。系统列表不在 userList 内，不能仅凭该数组表达与私人歌单的混排；混排改用下述账号显示设置。无变化不写入；保存失败不自动重试，成功后只读回查。没有 CAS，仍有 GET/POST 之间的并发窗口。library_order_test 覆盖上述契约与界面拖动/长按；真实部署顺序写入与其他设备可见性待验收。

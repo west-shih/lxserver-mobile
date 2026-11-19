@@ -73,7 +73,7 @@ void showSongActions(
                 final target = await pickCollection(
                   origin,
                   controller,
-                  songCount: 1,
+                  songs: [song],
                 );
                 if (target == null ||
                     !origin.mounted ||

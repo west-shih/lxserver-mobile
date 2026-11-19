@@ -123,6 +123,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('我的收藏'), findsOneWidget);
       expect(find.text('我的音乐'), findsNothing);
+      final create = find.byTooltip('新建歌单').hitTestable();
+      final download = find.byTooltip('本机下载');
+      final downloadPosition = tester.getCenter(download);
+      expect(tester.getCenter(create).dx, lessThan(downloadPosition.dx));
       final categoryRects = find
           .byType(ChoiceChip)
           .evaluate()
@@ -139,6 +143,10 @@ void main() {
         closeTo(searchTop, .1),
       );
       expect(tester.takeException(), isNull);
+      await tester.tap(find.widgetWithText(ChoiceChip, '歌手'));
+      await tester.pumpAndSettle();
+      expect(create, findsNothing);
+      expect(tester.getCenter(download), downloadPosition);
       await tester.pumpWidget(const SizedBox());
       c.dispose();
     });

@@ -187,7 +187,7 @@ class _EntityDetailScreenState extends State<EntityDetailScreen>
   Future<void> _collectSelected() async {
     final songs = List<Song>.of(_selectedSongs);
     if (songs.isEmpty || _busy) return;
-    final target = await pickCollection(context, c, songCount: songs.length);
+    final target = await pickCollection(context, c, songs: songs);
     if (target == null || !mounted || c.session != d.session) return;
     setState(() => _saving = true);
     try {
