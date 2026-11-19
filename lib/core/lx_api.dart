@@ -127,6 +127,9 @@ class Song {
     for (final key in [
       'albumName',
       'albumId',
+      'artistId',
+      'singerId',
+      'singermid',
       'hash',
       'strMediaMid',
       'albumMid',

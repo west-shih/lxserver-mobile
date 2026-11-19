@@ -38,6 +38,8 @@ Map<String, dynamic> songSnapshotData(Song song) => {
     'sid',
     'mediaMid',
     'singerId',
+    'artistId',
+    'singermid',
   ])
     if (song.raw[key] != null) key: song.raw[key],
 };

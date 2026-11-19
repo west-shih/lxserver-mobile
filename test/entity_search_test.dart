@@ -16,6 +16,7 @@ import 'package:lxserver_mobile/features/search/music_entity.dart';
 import 'package:lxserver_mobile/features/search/source_availability.dart';
 import 'package:lxserver_mobile/features/search/album_card.dart';
 import 'package:lxserver_mobile/shared/song_art.dart';
+import 'package:lxserver_mobile/shared/song_singer.dart';
 import 'package:lxserver_mobile/features/search/artist_card.dart';
 import 'package:lxserver_mobile/features/search/entity_widgets.dart';
 
@@ -30,6 +31,96 @@ MusicEntity entity({bool artist = true}) =>
     MusicEntity({'id': 'mid', 'name': '测试歌手'}, MusicSource.tx, artist);
 
 void main() {
+  testWidgets(
+    'Song singer opens by platform ID or searches the same platform',
+    (tester) async {
+      final queries = <Map<String, String>>[];
+      final detailIds = <String>[];
+      final c = AppController(
+        api: LxApi(
+          client: MockClient((request) async {
+            final query = request.url.queryParameters;
+            if (request.url.path == '/api/music/search') {
+              queries.add(query);
+              return response({
+                'list': [
+                  {
+                    'id': 'FirstMID',
+                    'name': '同名歌手',
+                    'alias': ['第一位'],
+                  },
+                  {
+                    'id': 'SecondMID',
+                    'name': '同名歌手',
+                    'alias': ['第二位'],
+                  },
+                ],
+              });
+            }
+            if (request.url.path == '/api/music/artistDetail') {
+              detailIds.add(query['id']!);
+              return response({'name': '详情歌手'});
+            }
+            return response([]);
+          }),
+        ),
+      )..session = session;
+      final songs = [
+        Song({
+          'songmid': '1',
+          'singer': '网易歌手',
+          'meta': {'artistId': 123},
+        }, MusicSource.wy),
+        Song({
+          'songmid': '2',
+          'singer': '同名歌手',
+          'singerId': 456,
+        }, MusicSource.tx),
+        Song({'songmid': '3', 'singer': '咪咕歌手'}, MusicSource.mg),
+      ];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: [
+                for (final song in songs)
+                  SongSinger(
+                    song: song,
+                    controller: c,
+                    style: const TextStyle(),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('咪咕歌手'));
+      await tester.pumpAndSettle();
+      expect(detailIds, isEmpty);
+      await tester.tap(find.text('网易歌手'));
+      await tester.pumpAndSettle();
+      expect(find.byType(EntityDetailScreen), findsOneWidget);
+      expect(detailIds, ['123']);
+      expect(queries, isEmpty);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('同名歌手'));
+      await tester.pumpAndSettle();
+      expect(queries.single['source'], 'tx');
+      expect(queries.single['type'], 'singer');
+      expect(queries.single['name'], '同名歌手');
+      expect(find.text('选择歌手'), findsOneWidget);
+      expect(detailIds, ['123']);
+      await tester.tap(find.text('第二位'));
+      await tester.pumpAndSettle();
+      expect(detailIds, ['123', 'SecondMID']);
+      await tester.pumpWidget(const SizedBox());
+      c.dispose();
+    },
+  );
+
   test('artist aliases remove duplicate display names and survive native favorite metadata', () {
     const e = MusicEntity(
       {

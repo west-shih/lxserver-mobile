@@ -13,6 +13,13 @@ enum SearchKind {
 bool supportsEntities(MusicSource source) =>
     source == MusicSource.wy || source == MusicSource.tx;
 
+bool isArtistDetailId(MusicSource source, String id) => switch (source) {
+  MusicSource.wy => RegExp(r'^[1-9]\d*$').hasMatch(id),
+  MusicSource.tx =>
+    RegExp(r'^[a-zA-Z0-9]+$').hasMatch(id) && !RegExp(r'^\d+$').hasMatch(id),
+  _ => false,
+};
+
 class MusicEntity {
   const MusicEntity(this.raw, this.source, this.artist);
   final Map<String, dynamic> raw;

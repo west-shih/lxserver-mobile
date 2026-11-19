@@ -182,6 +182,33 @@ class EntitySearchController extends ChangeNotifier {
     }
   }
 
+  Future<List<MusicEntity>> findArtists(
+    Session session,
+    MusicSource source,
+    String name,
+  ) async {
+    final data = await _read(
+      session,
+      '/api/music/search',
+      query: {
+        'name': name,
+        'source': source.name,
+        'type': SearchKind.artist.apiType,
+        'page': '1',
+        'limit': '20',
+      },
+    );
+    if (data is! Map<String, dynamic> || data['list'] is! List) {
+      throw const ApiFailure('搜索结果格式不兼容');
+    }
+    final candidates = <String, MusicEntity>{
+      for (final artist in parseEntities(data['list'], source, true))
+        if (isArtistDetailId(source, artist.id)) artist.id: artist,
+    }.values.toList();
+    final exact = candidates.where((artist) => artist.name == name).toList();
+    return exact.isEmpty ? candidates : exact;
+  }
+
   Future<void> search(
     Session session,
     String query, {

@@ -1,5 +1,6 @@
 export 'quality_sheet.dart';
 import '../../shared/song_metadata.dart';
+import '../../shared/song_singer.dart';
 import 'comments_sheet.dart';
 import '../../app/controller.dart';
 
@@ -43,11 +44,10 @@ class _SongInfo extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text(
-                  song.singer,
+                SongSinger(
                   key: const ValueKey('player-song-artist'),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  song: song,
+                  controller: app,
                   style: const TextStyle(
                     color: lxMuted,
                     fontSize: 14,

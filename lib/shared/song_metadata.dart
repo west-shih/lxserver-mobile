@@ -5,6 +5,7 @@ import '../app/theme.dart';
 import '../core/lx_api.dart';
 import '../features/player/quality.dart';
 import 'music_badge.dart';
+import 'song_singer.dart';
 import '../features/local_media/local_media_screens.dart';
 
 class SongMetadata extends StatelessWidget {
@@ -86,10 +87,9 @@ class SongMetadata extends StatelessWidget {
         children: badges,
       );
     }
-    final singer = Text(
-      song.singer,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
+    final singer = SongSinger(
+      song: song,
+      controller: controller,
       style: const TextStyle(
         color: lxMuted,
         fontSize: 12,
