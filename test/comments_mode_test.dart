@@ -90,6 +90,8 @@ void main() {
     final item = Song({
       'songmid': 'not-playing',
       'name': 'Fixture',
+      'albumName': 'Fixture album',
+      'interval': '03:45',
       '_types': {
         '128k': {'size': '4.25 MB'},
         'flac': {'size': '0 B'},
@@ -146,8 +148,15 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('信息'));
     await tester.pumpAndSettle();
-    expect(find.text('本机'), findsOneWidget);
-    expect(find.text('LXServer'), findsOneWidget);
+    expect(find.text('信息'), findsOneWidget);
+    expect(find.text('本机'), findsNothing);
+    expect(find.text('服务器文件在网页端管理'), findsNothing);
+    expect(find.text('专辑与曲目信息'), findsOneWidget);
+    expect(find.text('Fixture album'), findsOneWidget);
+    expect(find.text('03:45'), findsOneWidget);
+    expect(find.text('歌曲 ID'), findsOneWidget);
+    expect(find.text('not-playing'), findsOneWidget);
+    expect(find.text('LXServer 文件状态'), findsOneWidget);
     expect(find.byIcon(Icons.download_rounded), findsNothing);
     await tester.pumpWidget(const SizedBox());
     c.dispose();

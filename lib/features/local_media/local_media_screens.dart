@@ -10,6 +10,8 @@ import '../../core/lx_api.dart';
 import '../../shared/song_art.dart';
 import '../../shared/music_badge.dart';
 import '../player/quality.dart';
+import '../search/entity_widgets.dart';
+import '../search/music_entity.dart';
 import 'local_media_controller.dart';
 
 String audioBytes(int bytes) => bytes >= 1024 * 1024 * 1024
@@ -153,64 +155,118 @@ Future<void> confirmClearSongCache(
   }
 }
 
-void showFileDetails(BuildContext context, AppController c, Song song) {
+void showFileDetails(BuildContext origin, AppController c, Song song) {
+  final session = c.session;
+  final album = song.album.trim();
+  final interval = song.interval.trim();
+  final meta = song.raw['meta'];
+  String? value(Object? raw) {
+    final text = raw is String || raw is int ? '$raw'.trim() : '';
+    return text.isEmpty || text == '0' ? null : text;
+  }
+
+  final mid = value(song.raw['songmid']) ?? value(song.raw['id']);
+  final numericId = song.isOnline && song.source == MusicSource.tx
+      ? [song.raw['songId'], if (meta is Map) meta['songId'], mid]
+            .map(value)
+            .whereType<String>()
+            .where(RegExp(r'^\d+$').hasMatch)
+            .firstOrNull
+      : null;
+  final songId = numericId ?? mid ?? value(song.raw['hash']);
+  final qqMid =
+      numericId != null && mid != null && !RegExp(r'^\d+$').hasMatch(mid)
+      ? mid
+      : null;
+  final albumId = song.isOnline
+      ? switch (song.source) {
+          MusicSource.tx =>
+            [song.raw['albumMid'], song.raw['albumId']]
+                .map(value)
+                .whereType<String>()
+                .where(
+                  (id) =>
+                      RegExp(r'^[a-zA-Z0-9]+$').hasMatch(id) &&
+                      !RegExp(r'^\d+$').hasMatch(id),
+                )
+                .firstOrNull,
+          MusicSource.wy => value(song.raw['albumId']),
+          _ => null,
+        }
+      : null;
+  final canOpenAlbum =
+      albumId != null &&
+      album.isNotEmpty &&
+      session != null &&
+      c.entitySources.contains(song.source) &&
+      (song.source != MusicSource.wy ||
+          RegExp(r'^[1-9]\d*$').hasMatch(albumId));
+  final fields = {
+    if (album.isNotEmpty) '专辑': album,
+    if (interval.isNotEmpty && interval != '00:00') '时长': interval,
+    '歌曲 ID': ?songId,
+    'QQ MID': ?qqMid,
+  };
   c.refreshServerFiles();
   showAppSheet<void>(
-    context: context,
-    title: '存储',
+    context: origin,
+    title: '信息',
     closeLabel: '关闭',
     showDragHandle: true,
     isScrollControlled: true,
     builder: (context) => ListenableBuilder(
-      listenable: Listenable.merge([c.localMedia, c.serverFiles]),
+      listenable: c.serverFiles,
       builder: (context, _) {
-        final local = c.localMedia.folders(song);
         final server = c.serverFiles.folders(song);
         return ListView(
           shrinkWrap: true,
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
           children: [
-            const Text('本机', style: TextStyle(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 6),
-            if (local.isEmpty)
+            const Text(
+              '专辑与曲目信息',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            if (fields.isEmpty)
               const ListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,
-                title: Text('没有本机音频文件', style: TextStyle(color: lxMuted)),
+                title: Text('暂无曲目信息', style: TextStyle(color: lxMuted)),
               ),
-            for (final e in local.entries)
+            for (final field in fields.entries)
               ListTile(
+                dense: true,
                 contentPadding: EdgeInsets.zero,
-                title: Text(AudioQuality.labelOf(e.key)),
-                subtitle: Text(
-                  c.localMedia.pendingRemoval(song, e.key)
-                      ? '切歌后清除'
-                      : audioBytes(
-                          c.localMedia.fileFor(song, e.key)?.bytes ?? 0,
-                        ),
-                  style: const TextStyle(color: lxMuted, fontSize: 12),
-                ),
-                trailing: MusicBadge(
-                  e.value == 'downloads' ? '已下载' : '已缓存',
-                  tone: e.value == 'downloads'
-                      ? BadgeTone.blue
-                      : BadgeTone.green,
-                ),
-                onTap: e.value == 'cache'
-                    ? () => confirmClearSongCache(
-                        context,
-                        c,
-                        song,
-                        quality: e.key,
-                      )
+                title: Text(field.key),
+                subtitle: Text(field.value),
+                trailing: field.key == '专辑' && canOpenAlbum
+                    ? const Icon(Icons.chevron_right_rounded)
+                    : null,
+                onTap: field.key == '专辑' && canOpenAlbum
+                    ? () {
+                        if (c.session != session) return;
+                        Navigator.pop(context);
+                        openEntity(
+                          origin,
+                          c,
+                          MusicEntity(
+                            {
+                              'id': albumId,
+                              'name': album,
+                              'artistName': song.singer,
+                            },
+                            song.source,
+                            false,
+                          ),
+                        );
+                      }
                     : null,
               ),
-            const Divider(height: 32),
+            const Divider(),
             Row(
               children: [
                 const Expanded(
                   child: Text(
-                    'LXServer',
+                    'LXServer 文件状态',
                     style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -243,11 +299,6 @@ void showFileDetails(BuildContext context, AppController c, Song song) {
                   tone: e.value == 'music' ? BadgeTone.blue : BadgeTone.green,
                 ),
               ),
-            const SizedBox(height: 8),
-            const Text(
-              '服务器文件在网页端管理',
-              style: TextStyle(color: lxMuted, fontSize: 12),
-            ),
           ],
         );
       },
