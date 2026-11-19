@@ -9,9 +9,45 @@ import 'package:lxserver_mobile/core/lx_api.dart';
 import 'package:lxserver_mobile/features/player/quality.dart';
 import 'package:lxserver_mobile/features/player/player_screen.dart';
 import 'package:lxserver_mobile/features/player/lyrics.dart';
+import 'package:lxserver_mobile/shared/music_badge.dart';
 import 'package:lxserver_mobile/shared/song_tile.dart';
 
 void main() {
+  testWidgets('Only labels containing Chinese receive baseline correction', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: MediaQuery(
+          data: MediaQueryData(textScaler: TextScaler.linear(1.6)),
+          child: Column(
+            children: [
+              MusicBadge('无损', tone: BadgeTone.green),
+              MusicBadge('24bit 无损', tone: BadgeTone.yellow),
+              MusicBadge('QQ', tone: BadgeTone.green),
+              MusicBadge('Hi-Res', tone: BadgeTone.yellow),
+            ],
+          ),
+        ),
+      ),
+    );
+    for (final label in ['无损', '24bit 无损', 'QQ', 'Hi-Res']) {
+      final text = find.text(label);
+      final badge = find.ancestor(of: text, matching: find.byType(MusicBadge));
+      final style = tester.widget<Text>(text).style!;
+      final chinese = label.contains('无损');
+      expect(style.height, 1.3);
+      expect(
+        style.leadingDistribution,
+        chinese ? null : TextLeadingDistribution.even,
+      );
+      expect(
+        tester.getCenter(text).dy - tester.getCenter(badge).dy,
+        closeTo(chinese ? -.8 : 0, .01),
+      );
+    }
+  });
+
   testWidgets(
     'List badge prefers remembered track quality and resets to metadata',
     (tester) async {

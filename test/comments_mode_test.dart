@@ -48,7 +48,7 @@ void main() {
     final screenHeight =
         tester.view.physicalSize.height / tester.view.devicePixelRatio;
     final shortHeight = height();
-    expect(shortHeight, closeTo(200 + 18, 1));
+    expect(shortHeight, closeTo(200 + 8, 1));
     app.player.enqueueAll(queueSession, tracks.skip(1).take(3));
     await tester.pumpAndSettle();
     final middleHeight = height();
@@ -56,7 +56,7 @@ void main() {
     app.player.enqueueAll(queueSession, tracks.skip(4));
     await tester.pumpAndSettle();
     expect(height(), greaterThan(middleHeight));
-    expect(height(), closeTo(screenHeight * .78 + 18, 1));
+    expect(height(), closeTo(screenHeight * .78 + 8, 1));
     expect(
       tester
           .state<ScrollableState>(find.byType(Scrollable))
@@ -346,7 +346,7 @@ void main() {
       final screenHeight =
           tester.view.physicalSize.height / tester.view.devicePixelRatio;
       final sheetHeight = tester.getSize(find.byType(BottomSheet)).height;
-      expect(sheetHeight, greaterThanOrEqualTo(200 + 18));
+      expect(sheetHeight, greaterThanOrEqualTo(200 + 8));
       expect(sheetHeight, lessThan(screenHeight * .60));
       await tester.tap(find.text('最热评论'));
       await tester.pumpAndSettle();

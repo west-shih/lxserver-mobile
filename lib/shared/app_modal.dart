@@ -139,7 +139,11 @@ Future<T?> showAppSheet<T>({
     child: Builder(
       builder: (context) {
         final keyboard = MediaQuery.viewInsetsOf(context).bottom;
-        final handleHeight = showDragHandle ? 18.0 : 0.0;
+        const dragHandleHeight = 3.0;
+        const dragHandleMargin = EdgeInsets.only(top: 4, bottom: 1);
+        final handleHeight = showDragHandle
+            ? dragHandleHeight + dragHandleMargin.vertical
+            : 0.0;
         return Padding(
           padding: EdgeInsets.only(bottom: keyboard),
           child: MediaQuery.removeViewInsets(
@@ -160,8 +164,8 @@ Future<T?> showAppSheet<T>({
                       Center(
                         child: Container(
                           width: 30,
-                          height: 3,
-                          margin: const EdgeInsets.only(top: 9, bottom: 6),
+                          height: dragHandleHeight,
+                          margin: dragHandleMargin,
                           decoration: BoxDecoration(
                             color: const Color(0xFFD5E0D9),
                             borderRadius: BorderRadius.circular(3),

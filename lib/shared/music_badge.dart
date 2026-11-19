@@ -9,6 +9,7 @@ class MusicBadge extends StatelessWidget {
   const MusicBadge(this.label, {super.key, required this.tone});
   final String label;
   final BadgeTone tone;
+  static final _cjk = RegExp(r'[\u3400-\u9fff]');
   static BadgeTone source(MusicSource source) => switch (source) {
     MusicSource.kw => BadgeTone.yellow,
     MusicSource.kg => BadgeTone.blue,
@@ -36,12 +37,13 @@ class MusicBadge extends StatelessWidget {
       BadgeTone.cyan => (0xFFCFFAFE, 0xFF0E7490, 0xFFA5F3FC),
       BadgeTone.gray => (0xFFF3F4F6, 0xFF4B5563, 0xFFE5E7EB),
     };
+    final hasChinese = _cjk.hasMatch(label);
     final text = Text(
       label,
       style: TextStyle(
         fontSize: 10,
         height: 1.3,
-        leadingDistribution: TextLeadingDistribution.even,
+        leadingDistribution: hasChinese ? null : TextLeadingDistribution.even,
         fontWeight: FontWeight.w600,
         color: Color(foreground),
       ),
@@ -53,7 +55,13 @@ class MusicBadge extends StatelessWidget {
         border: Border.all(color: Color(border)),
         borderRadius: BorderRadius.circular(4),
       ),
-      child: text,
+      // CJK glyphs need a small optical correction within their natural line box.
+      child: hasChinese
+          ? Transform.translate(
+              offset: Offset(0, -MediaQuery.textScalerOf(context).scale(0.5)),
+              child: text,
+            )
+          : text,
     );
   }
 }
